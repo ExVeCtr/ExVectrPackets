@@ -53,6 +53,30 @@ namespace VCTR
 
         } __attribute__((packed));
 
+        struct PacketGPS {
+
+            int32_t latitude; // Latitude in degrees multiplied by 1e7
+            int32_t longitude; // Longitude in degrees multiplied by 1e7
+            float altitude; // Altitude in meters   
+            float velocity[3]; // Velocity [vx, vy, vz] in m/s
+            uint8_t numSats; // Number of satellites used for the fix
+
+            PacketGPS(const Math::Vector_F& vel = 0, const float lat = 0, const float lon = 0, const float alt = 0, const uint8_t numSats = 0) {
+                for (int i = 0; i < 3; i++) velocity[i] = vel[i][0];
+                latitude = lat * 1e7; // Convert to integer representation
+                longitude = lon * 1e7; // Convert to integer representation
+                altitude = alt;
+                this->numSats = numSats;
+            }
+
+            double getLatitude() const {
+                return latitude / 1e7; // Convert to degrees
+            }
+            double getLongitude() const {
+                return longitude / 1e7; // Convert to degrees
+            }
+
+        } __attribute__((packed));
 
 
     }
