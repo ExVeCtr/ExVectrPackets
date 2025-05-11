@@ -94,7 +94,6 @@ namespace VCTR
         } __attribute__((packed));
 
 
-
     }
 
 }
