@@ -3,6 +3,7 @@
 
 #include "stdint.h"
 
+#include "ExVectrMath/constants.hpp"
 #include "ExVectrMath/matrix_base.hpp"
 #include "ExVectrMath/matrix_vector.hpp"
 #include "ExVectrMath/matrix_quaternion.hpp"
