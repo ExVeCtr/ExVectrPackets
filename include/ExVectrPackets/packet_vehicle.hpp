@@ -16,12 +16,13 @@ namespace VCTR
 
         struct PacketAttitude
         {
-
+        private:
             int16_t angularVelocity[3]; // Angular velocity [wx, wy, wz] in rad/s. Assuming max value of 1000 deg/s.
             int16_t quaternion[4];      // Quaternion [w, x, y, z]. Assuming max value of 1.0 for each component.
             int16_t tiltAccuracy;       // Tilt accuracy in radians. Assuming max value of 360 deg.
             int16_t northAccuracy;      // North accuracy in radians. Assuming max value of 360 deg.
 
+        public:
             PacketAttitude(const Math::Vector_F &angVel = 0, const Math::Quat_F &attQuat = Math::Quat_F(1, 0, 0, 0), const float tiltAcc = 0, const float northAcc = 0)
             {
                 float buf = 0;
@@ -55,7 +56,7 @@ namespace VCTR
             }
             Math::Quat_F getQuaternion() const
             {
-                return Math::Quat_F((float)quaternion[0] / INT16_MAX, (float)quaternion[1] / 10000.0f, (float)quaternion[2] / 10000.0f, (float)quaternion[3] / 10000.0f);
+                return Math::Quat_F((float)quaternion[0] / INT16_MAX, (float)quaternion[1] / INT16_MAX, (float)quaternion[2] / INT16_MAX, (float)quaternion[3] / INT16_MAX);
             }
             float getTiltAccuracy() const
             {
@@ -70,12 +71,13 @@ namespace VCTR
 
         struct PacketPosition
         {
-
+        private:
             int16_t position[3]; // Position [x, y, z] in m. Assuming max value of 1000 meters
             int16_t velocity[3]; // Velocity [vx, vy, vz] in m/s. Assuming max value of 100 m/s.
             int16_t hAccuracy;   // Horizontal accuracy in m. Assuming max value of 10 meters.
             int16_t vAccuracy;   // Vertical accuracy in m. Assuming max value of 10 meters.
 
+        public:
             PacketPosition(const Math::Vector_F &pos = 0, const Math::Vector_F &vel = 0, const float hAcc = 0, const float vAcc = 0)
             {
                 float buf = 0;
@@ -120,7 +122,7 @@ namespace VCTR
 
         struct PacketGPS
         {
-
+        private:
             int32_t latitude;    // Latitude in degrees multiplied by 1e7
             int32_t longitude;   // Longitude in degrees multiplied by 1e7
             int16_t altitude;    // Altitude in meters. Assuming max value of 1000 meters
@@ -131,6 +133,7 @@ namespace VCTR
             int16_t altitudeAccuracy; // Altitude accuracy in meters. Assuming max value of 10 meters
             int16_t velocityAccuracy; // Velocity accuracy in m/s. Assuming max value of 10 m/s
 
+        public:
             PacketGPS(const Math::Vector_F &vel = 0, const float lat = 0, const float lon = 0, const float alt = 0, const uint8_t numSats = 0, const float posAcc = 0, const float altAcc = 0, const float velAcc = 0)
             {
                 float buf = 0;
