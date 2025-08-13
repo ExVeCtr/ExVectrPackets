@@ -8,6 +8,8 @@
 #include "ExVectrMath/matrix_vector.hpp"
 #include "ExVectrMath/matrix_quaternion.hpp"
 
+#include "data_packing.hpp"
+
 namespace VCTR
 {
 
@@ -25,49 +27,42 @@ namespace VCTR
         public:
             PacketAttitude(const Math::Vector_F &angVel = 0, const Math::Quat_F &attQuat = Math::Quat_F(1, 0, 0, 0), const float tiltAcc = 0, const float northAcc = 0)
             {
-                float buf = 0;
                 for (int i = 0; i < 3; i++)
                 {
-                    buf = angVel[i][0] / (1000 * DEGREES) * INT16_MAX;
-                    buf = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                         : buf;
-                    angularVelocity[i] = buf;
+                    angularVelocity[i] = packFixedPoint<float, int16_t>(angVel[i][0], 1000 * DEGREES);
                 }
                 for (int i = 0; i < 4; i++)
                 {
-                    buf = attQuat[i][0] * INT16_MAX;
-                    buf = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                         : buf;
-                    quaternion[i] = buf;
+                    quaternion[i] = packFixedPoint<float, int16_t>(attQuat[i][0], 1.0f);
                 }
-                buf = tiltAcc / (360 * DEGREES) * INT16_MAX;
-                buf = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                     : buf;
-                tiltAccuracy = buf;
-                buf = northAcc / (360 * DEGREES) * INT16_MAX;
-                buf = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                     : buf;
-                northAccuracy = buf;
+                tiltAccuracy = packFixedPoint<float, int16_t>(tiltAcc, 360 * DEGREES);
+                northAccuracy = packFixedPoint<float, int16_t>(northAcc, 360 * DEGREES);
             }
 
             Math::Vector_F getAngularVelocity() const
             {
-                return Math::Vector_F({(float)angularVelocity[0] / INT16_MAX * 1000 * DEGREES, (float)angularVelocity[1] / INT16_MAX * 1000 * DEGREES, (float)angularVelocity[2] / INT16_MAX * 1000 * DEGREES});
+                return Math::Vector_F({unpackFixedPoint<int16_t, float>(angularVelocity[0], 1000 * DEGREES),
+                                       unpackFixedPoint<int16_t, float>(angularVelocity[1], 1000 * DEGREES),
+                                       unpackFixedPoint<int16_t, float>(angularVelocity[2], 1000 * DEGREES)});
             }
             Math::Quat_F getQuaternion() const
             {
-                return Math::Quat_F((float)quaternion[0] / INT16_MAX, (float)quaternion[1] / INT16_MAX, (float)quaternion[2] / INT16_MAX, (float)quaternion[3] / INT16_MAX);
+                return Math::Quat_F(unpackFixedPoint<int16_t, float>(quaternion[0], 1.0f),
+                                    unpackFixedPoint<int16_t, float>(quaternion[1], 1.0f),
+                                    unpackFixedPoint<int16_t, float>(quaternion[2], 1.0f),
+                                    unpackFixedPoint<int16_t, float>(quaternion[3], 1.0f));
             }
             float getTiltAccuracy() const
             {
-                return (float)tiltAccuracy / INT16_MAX * 360 * DEGREES; // Convert to radians
+                return unpackFixedPoint<int16_t, float>(tiltAccuracy, 360 * DEGREES);
             }
             float getNorthAccuracy() const
             {
-                return (float)northAccuracy / INT16_MAX * 360 * DEGREES; // Convert to radians
+                return unpackFixedPoint<int16_t, float>(northAccuracy, 360 * DEGREES);
             }
 
-        } __attribute__((packed));
+        }
+        __attribute__((packed));
 
         struct PacketPosition
         {
@@ -80,42 +75,37 @@ namespace VCTR
         public:
             PacketPosition(const Math::Vector_F &pos = 0, const Math::Vector_F &vel = 0, const float hAcc = 0, const float vAcc = 0)
             {
-                float buf = 0;
                 for (int i = 0; i < 3; i++)
                 {
-                    buf = pos[i][0] * 1000 / INT16_MAX;
-                    position[i] = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                                 : buf;
+                    position[i] = packFixedPoint<float, int16_t>(pos[i][0], 1000);
                 }
                 for (int i = 0; i < 3; i++)
                 {
-                    buf = vel[i][0] * 100 / INT16_MAX;
-                    velocity[i] = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                                 : buf;
+                    velocity[i] = packFixedPoint<float, int16_t>(vel[i][0], 100);
                 }
-                buf = hAcc / 10 * INT16_MAX;
-                hAccuracy = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                           : buf;
-                buf = vAcc / 10 * INT16_MAX;
-                vAccuracy = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                           : buf;
+                hAccuracy = packFixedPoint<float, int16_t>(hAcc, 10);
+                vAccuracy = packFixedPoint<float, int16_t>(vAcc, 10);
             }
 
             Math::Vector_F getPosition() const
             {
-                return Math::Vector_F({(float)position[0] * 1000 / INT16_MAX, (float)position[1] * 1000 / INT16_MAX, (float)position[2] * 1000 / INT16_MAX});
+                return Math::Vector_F({unpackFixedPoint<int16_t, float>(position[0], 1000),
+                                       unpackFixedPoint<int16_t, float>(position[1], 1000),
+                                       unpackFixedPoint<int16_t, float>(position[2], 1000)});
             }
             Math::Vector_F getVelocity() const
             {
-                return Math::Vector_F({(float)velocity[0] * 100 / INT16_MAX, (float)velocity[1] * 100 / INT16_MAX, (float)velocity[2] * 100 / INT16_MAX});
+                return Math::Vector_F({unpackFixedPoint<int16_t, float>(velocity[0], 100),
+                                       unpackFixedPoint<int16_t, float>(velocity[1], 100),
+                                       unpackFixedPoint<int16_t, float>(velocity[2], 100)});
             }
             float getHAccuracy() const
             {
-                return (float)hAccuracy / INT16_MAX * 10; // Convert to meters
+                return unpackFixedPoint<int16_t, float>(hAccuracy, 10);
             }
             float getVAccuracy() const
             {
-                return (float)vAccuracy / INT16_MAX * 10; // Convert to meters
+                return unpackFixedPoint<int16_t, float>(vAccuracy, 10);
             }
 
         } __attribute__((packed));
@@ -134,29 +124,18 @@ namespace VCTR
             int16_t velocityAccuracy; // Velocity accuracy in m/s. Assuming max value of 10 m/s
 
         public:
-            PacketGPS(const Math::Vector_F &vel = 0, const float lat = 0, const float lon = 0, const float alt = 0, const uint8_t numSats = 0, const float posAcc = 0, const float altAcc = 0, const float velAcc = 0)
+            PacketGPS(const Math::Vector_F &vel = 0, const double lat = 0, const double lon = 0, const float alt = 0, const uint8_t numSats = 0, const float posAcc = 0, const float altAcc = 0, const float velAcc = 0)
             {
-                float buf = 0;
                 for (int i = 0; i < 3; i++)
                 {
-                    buf = vel[i][0] * 100 / INT16_MAX;
-                    velocity[i] = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                                 : buf;
+                    velocity[i] = packFixedPoint<float, int16_t>(vel[i][0], 100);
                 }
                 latitude = lat * 1e7;         // Convert to integer representation
                 longitude = lon * 1e7;        // Convert to integer representation
-                buf = alt * 1000 / INT16_MAX; // Convert altitude to integer representation
-                altitude = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                          : buf;
-                buf = posAcc / 10 * INT16_MAX; // Convert position accuracy to integer representation
-                positionAccuracy = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                                  : buf;
-                buf = altAcc / 10 * INT16_MAX; // Convert altitude accuracy to integer representation
-                altitudeAccuracy = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                                  : buf;
-                buf = velAcc / 10 * INT16_MAX; // Convert velocity accuracy to integer representation
-                velocityAccuracy = buf > INT16_MAX ? INT16_MAX : buf < -INT16_MAX ? -INT16_MAX
-                                                                                  : buf;
+                altitude = packFixedPoint<float, int16_t>(alt, 1000); // Convert altitude to integer representation
+                positionAccuracy = packFixedPoint<float, int16_t>(posAcc, 10); // Convert position accuracy to integer representation
+                altitudeAccuracy = packFixedPoint<float, int16_t>(altAcc, 10); // Convert altitude accuracy to integer representation
+                velocityAccuracy = packFixedPoint<float, int16_t>(velAcc, 10); // Convert velocity accuracy to integer representation
                 this->numSats = numSats;
             }
 
@@ -170,11 +149,13 @@ namespace VCTR
             }
             double getAltitude() const
             {
-                return altitude / 1000.0; // Convert to meters
+                return unpackFixedPoint<int16_t, float>(altitude, 1000); // Convert to meters
             }
             Math::Vector_F getVelocity() const
             {
-                return Math::Vector_F({(float)velocity[0] * 100 / INT16_MAX, (float)velocity[1] * 100 / INT16_MAX, (float)velocity[2] * 100 / INT16_MAX});
+                return Math::Vector_F({unpackFixedPoint<int16_t, float>(velocity[0], 100),
+                                       unpackFixedPoint<int16_t, float>(velocity[1], 100),
+                                       unpackFixedPoint<int16_t, float>(velocity[2], 100)});
             }
             uint8_t getNumSats() const
             {
@@ -182,21 +163,20 @@ namespace VCTR
             }
             float getPositionAccuracy() const
             {
-                return (float)positionAccuracy / INT16_MAX * 10; // Convert to meters
+                return unpackFixedPoint<int16_t, float>(positionAccuracy, 10); // Convert to meters
             }
             float getAltitudeAccuracy() const
             {
-                return (float)altitudeAccuracy / INT16_MAX * 10; // Convert to meters
+                return unpackFixedPoint<int16_t, float>(altitudeAccuracy, 10); // Convert to meters
             }
             float getVelocityAccuracy() const
             {
-                return (float)velocityAccuracy / INT16_MAX * 10; // Convert to m/s
+                return unpackFixedPoint<int16_t, float>(velocityAccuracy, 10); // Convert to m/s
             }
 
         } __attribute__((packed));
 
     }
-
 }
 
 #endif
