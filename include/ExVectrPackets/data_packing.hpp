@@ -28,11 +28,6 @@ namespace VCTR::Net
     {
         static_assert(std::numeric_limits<INTYPE>::is_signed, "Input type must be signed");
 
-        if (value > std::numeric_limits<OUTTYPE>::max())
-            return limits;
-        if (value < std::numeric_limits<OUTTYPE>::min())
-            return -limits;
-
         return static_cast<OUTTYPE>(value / std::numeric_limits<OUTTYPE>::max() * limits);
     }
 
