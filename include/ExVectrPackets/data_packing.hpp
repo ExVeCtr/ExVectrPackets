@@ -19,16 +19,15 @@ namespace VCTR::Net
         if (value < -limits)
             return std::numeric_limits<OUTTYPE>::min();
 
-        return static_cast<OUTTYPE>(value / limits * std::numeric_limits<OUTTYPE>::max());
+        return static_cast<OUTTYPE>(value * std::numeric_limits<OUTTYPE>::max() / limits);
     }
 
     // Unpack any value from a fixed point representation with a given min and max value
     template <typename INTYPE, typename OUTTYPE>
-    OUTTYPE unpackFixedPoint(const INTYPE &value, const INTYPE &limits)
+    OUTTYPE unpackFixedPoint(const INTYPE &value, const OUTTYPE &limits)
     {
         static_assert(std::numeric_limits<INTYPE>::is_signed, "Input type must be signed");
-
-        return static_cast<OUTTYPE>(value / std::numeric_limits<OUTTYPE>::max() * limits);
+        return static_cast<OUTTYPE>(value) * limits / std::numeric_limits<INTYPE>::max();
     }
 
 } // namespace VCTR::Net

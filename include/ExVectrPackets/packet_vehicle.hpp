@@ -130,9 +130,9 @@ namespace VCTR
                 {
                     velocity[i] = packFixedPoint<float, int16_t>(vel[i][0], 100);
                 }
-                latitude = lat * 1e7;         // Convert to integer representation
-                longitude = lon * 1e7;        // Convert to integer representation
-                altitude = packFixedPoint<float, int16_t>(alt, 1000); // Convert altitude to integer representation
+                latitude = lat * 1e7;                                          // Convert to integer representation
+                longitude = lon * 1e7;                                         // Convert to integer representation
+                altitude = packFixedPoint<float, int16_t>(alt, 1000);          // Convert altitude to integer representation
                 positionAccuracy = packFixedPoint<float, int16_t>(posAcc, 10); // Convert position accuracy to integer representation
                 altitudeAccuracy = packFixedPoint<float, int16_t>(altAcc, 10); // Convert altitude accuracy to integer representation
                 velocityAccuracy = packFixedPoint<float, int16_t>(velAcc, 10); // Convert velocity accuracy to integer representation
