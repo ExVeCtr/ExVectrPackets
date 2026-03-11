@@ -13,6 +13,7 @@ namespace VCTR::packets {
 enum class PacketType : size_t {
   Telecommand, // Telecoms
   Telemetry,   // Telecoms
+  RadioLink,   // RadioLink
   MAX          //
 };
 
