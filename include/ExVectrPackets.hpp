@@ -1,11 +1,6 @@
-#ifndef EXVECTRNETWORK_H_
-#define EXVECTRNETWORK_H_
+#ifndef EXVECTRPACKETS_HPP_
+#define EXVECTRPACKETS_HPP_
 
-
-namespace VCTR
-{} // namespace VCTR The EXVECTR Library
-
-
-
+namespace VCTR {} // namespace VCTR
 
 #endif
