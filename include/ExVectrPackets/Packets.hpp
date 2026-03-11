@@ -1,5 +1,5 @@
-#ifndef EXVECTR_TELECOM_HPP
-#define EXVECTR_TELECOM_HPP
+#ifndef EXVECTR_PACKETS_HPP
+#define EXVECTR_PACKETS_HPP
 
 #include <concepts>
 #include <cstddef>
@@ -29,4 +29,4 @@ concept IsPacket = VCTR::Core::CanSerialize<T> && requires(const T a) {
 
 } // namespace VCTR::packets
 
-#endif // EXVECTR_TELECOM_HPP
+#endif // EXVECTR_PACKETS_HPP
