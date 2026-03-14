@@ -11,6 +11,7 @@ namespace VCTR::packets::radiolink {
 
 template <size_t Ax, size_t Dx, RadioLinkTypes LinkType> class RadioLinkPacket {
 public:
+  // Usually 4 ch with roll, pitch, yaw, thr
   int16_t analogChannels[Ax];  // Values from -1000 to 1000
   uint8_t digitalChannels[Dx]; // Values from 0-3
 
