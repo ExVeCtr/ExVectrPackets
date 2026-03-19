@@ -12,8 +12,8 @@ namespace VCTR::packets::telecoms {
 
 enum class TelecommandType : size_t { Reboot, UpdateMode, MAX };
 
-enum class TelemetryType : size_t { Heartbeat, MAX };
+enum class TelemetryType : size_t { Heartbeat, GNSS, MAX };
 
-} // namespace VCTR::Controller::telecom
+} // namespace VCTR::packets::telecoms
 
 #endif // EXVECTR_TELECOM_HPP
