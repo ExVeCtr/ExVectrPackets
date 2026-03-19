@@ -64,10 +64,10 @@ public:
 
   template <IsPacket T> void sendPacket(const T &packet) {
     VCTR::Core::ListArray<uint8_t> buffer;
-    buffer.setSize(packet.numBytes() + 2);
+    buffer.setSize(packet.numBytes());
     packet.serialize(buffer.getPtr());
-    buffer[buffer.size() - 2] = packet.getPacketType();
-    buffer[buffer.size() - 1] = packet.getPacketDataType();
+    buffer.append(packet.getPacketType());
+    buffer.append(packet.getPacketDataType());
     sendingHandler(buffer);
   }
 
