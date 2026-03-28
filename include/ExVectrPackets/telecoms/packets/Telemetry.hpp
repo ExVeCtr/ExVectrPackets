@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <stdint.h>
 
+#include "ExVectrPackets/Packets.hpp"
 #include "ExVectrPackets/telecoms/TelecomTypes.hpp"
 
 namespace VCTR::packets::telecoms {
@@ -17,7 +18,7 @@ public:
 
   size_t numBytes() const;
   void serialize(uint8_t *buffer) const;
-  static Telemetry_Heartbeat deserialize(const uint8_t *buffer);
+  bool deserialize(const uint8_t *buffer);
 };
 
 class Telemetry_GNSS {
@@ -31,7 +32,7 @@ public:
 
   size_t numBytes() const;
   void serialize(uint8_t *buffer) const;
-  static Telemetry_GNSS deserialize(const uint8_t *buffer);
+  bool deserialize(const uint8_t *buffer);
 };
 
 } // namespace VCTR::packets::telecoms

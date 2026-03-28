@@ -32,6 +32,9 @@ concept IsPacket = VCTR::Core::CanSerialize<T> && requires(const T a) {
 
 class PacketManager {
 
+  const size_t packetTypeBits;
+  const size_t packetDataTypeBits;
+
   using PacketSendingHandler =
       std::function<void(const VCTR::Core::ListArray<uint8_t> &)>;
   using PacketReceivingHandler =
@@ -48,17 +51,16 @@ class PacketManager {
   Core::ListArray<PacketHandler> receiveHandlers;
 
 public:
-  PacketManager(PacketSendingHandler sendingHandler) {
+  PacketManager(PacketSendingHandler sendingHandler, size_t packetTypeBits = 8,
+                size_t packetDataTypeBits = 8)
+      : packetTypeBits(packetTypeBits), packetDataTypeBits(packetDataTypeBits) {
     this->sendingHandler = sendingHandler;
   }
 
   void receivePacketData(const Core::ListArray<uint8_t> &data) {
     for (size_t i = 0; i < receiveHandlers.size(); ++i) {
       auto &handler = receiveHandlers[i];
-      if (data[data.size() - 2] == handler.packetType &&
-          data[data.size() - 1] == handler.packetDataType) {
-        handler.handler(data);
-      }
+      handler.handler(data);
     }
   }
 
@@ -66,8 +68,6 @@ public:
     VCTR::Core::ListArray<uint8_t> buffer;
     buffer.setSize(packet.numBytes());
     packet.serialize(buffer.getPtr());
-    buffer.append(packet.getPacketType());
-    buffer.append(packet.getPacketDataType());
     sendingHandler(buffer);
   }
 
@@ -75,7 +75,18 @@ public:
   void addPacketReceiveHandler(std::function<void(const T &)> handler) {
     receiveHandlers.append({T().getPacketType(), T().getPacketDataType(),
                             [handler](const Core::ListArray<uint8_t> &data) {
-                              handler(T::deserialize(data.getPtr()));
+                              if (data.size() < 2) {
+                                return;
+                              }
+
+                              T packet;
+                              if (data.size() != packet.numBytes()) {
+                                return;
+                              }
+                              if (!packet.deserialize(data.getPtr())) {
+                                return;
+                              }
+                              handler(packet);
                             }});
   }
 };

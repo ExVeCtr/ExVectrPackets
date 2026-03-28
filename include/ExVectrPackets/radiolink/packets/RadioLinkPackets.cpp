@@ -40,49 +40,63 @@ size_t RadioLinkPacket<Ax, Dx, LinkType>::getPacketDataType() const {
 
 template <size_t Ax, size_t Dx, RadioLinkTypes LinkType>
 size_t RadioLinkPacket<Ax, Dx, LinkType>::numBytes() const {
-  auto numBits =
-      Ax * 11 +
-      Dx * 2; // 11 bits per analog channel, 2 bits per digital channel
-  return (numBits + 7) / 8; // Convert bits to bytes, rounding up
+  auto numBits = Ax * 10 + Dx * 2;
+  return (numBits + 7) / 8 + 2; // payload + packet type + packet data type
 }
 
 template <size_t Ax, size_t Dx, RadioLinkTypes LinkType>
 void RadioLinkPacket<Ax, Dx, LinkType>::serialize(uint8_t *buffer) const {
+  const size_t payloadNumBytes = numBytes() - 2;
+  for (size_t i = 0; i < payloadNumBytes; ++i) {
+    buffer[i] = 0;
+  }
+
   size_t bitIndex = 0;
 
   for (size_t i = 0; i < Ax; ++i) {
-    uint16_t value = static_cast<uint16_t>(analogChannels[i] + 1000);
+    uint16_t value = static_cast<uint16_t>(float(analogChannels[i] + 1000) /
+                                           2000.0f * 1023.0f);
     bitIndex =
-        writeBits(buffer, reinterpret_cast<uint8_t *>(&value), bitIndex, 11);
+        writeBits(buffer, reinterpret_cast<uint8_t *>(&value), bitIndex, 10);
   }
 
   for (size_t i = 0; i < Dx; ++i) {
     uint8_t value = digitalChannels[i] & 0x03;
     bitIndex = writeBits(buffer, &value, bitIndex, 2);
   }
+
+  buffer[payloadNumBytes] = static_cast<uint8_t>(getPacketType());
+  buffer[payloadNumBytes + 1] = static_cast<uint8_t>(getPacketDataType());
 }
 
 template <size_t Ax, size_t Dx, RadioLinkTypes LinkType>
-RadioLinkPacket<Ax, Dx, LinkType>
-RadioLinkPacket<Ax, Dx, LinkType>::deserialize(const uint8_t *buffer) {
-  RadioLinkPacket<Ax, Dx, LinkType> packet;
+bool RadioLinkPacket<Ax, Dx, LinkType>::deserialize(const uint8_t *buffer) {
+  const size_t payloadNumBytes = numBytes() - 2;
+  if (buffer[payloadNumBytes] != static_cast<uint8_t>(getPacketType())) {
+    return false;
+  }
+  if (buffer[payloadNumBytes + 1] !=
+      static_cast<uint8_t>(getPacketDataType())) {
+    return false;
+  }
+
   size_t bitIndex = 0;
 
   // Analog channels are packed first — must match serialize() order.
   for (size_t i = 0; i < Ax; ++i) {
     uint16_t value = 0;
     bitIndex =
-        readBits(buffer, reinterpret_cast<uint8_t *>(&value), bitIndex, 11);
-    packet.analogChannels[i] = static_cast<int16_t>(value) - 1000;
+        readBits(buffer, reinterpret_cast<uint8_t *>(&value), bitIndex, 10);
+    analogChannels[i] = static_cast<int16_t>(value) - 1000;
   }
 
   for (size_t i = 0; i < Dx; ++i) {
     uint8_t value = 0;
     bitIndex = readBits(buffer, &value, bitIndex, 2);
-    packet.digitalChannels[i] = value & 0x03;
+    digitalChannels[i] = value & 0x03;
   }
 
-  return packet;
+  return true;
 }
 
 // Explicit instantiations so out-of-line template definitions are compiled.

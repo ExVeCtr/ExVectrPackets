@@ -6,26 +6,29 @@ namespace VCTR::packets::telecoms {
 
 // ---- Telemetry_Heartbeat ----
 size_t Telemetry_Heartbeat::getPacketType() const {
-  return static_cast<size_t>(TelemetryType::Heartbeat);
+  return static_cast<size_t>(VCTR::packets::PacketType::Telemetry);
 }
 
 size_t Telemetry_Heartbeat::getPacketDataType() const {
   return static_cast<size_t>(TelemetryType::Heartbeat);
 }
 
-size_t Telemetry_Heartbeat::numBytes() const { return 0; }
+size_t Telemetry_Heartbeat::numBytes() const { return 2; }
 
-void Telemetry_Heartbeat::serialize(uint8_t * /*buffer*/) const {}
+void Telemetry_Heartbeat::serialize(uint8_t *buffer) const {
+  buffer[0] = static_cast<uint8_t>(getPacketType());
+  buffer[1] = static_cast<uint8_t>(getPacketDataType());
+}
 
-Telemetry_Heartbeat
-Telemetry_Heartbeat::deserialize(const uint8_t * /*buffer*/) {
-  return Telemetry_Heartbeat{};
+bool Telemetry_Heartbeat::deserialize(const uint8_t *buffer) {
+  return buffer[0] == static_cast<uint8_t>(getPacketType()) &&
+         buffer[1] == static_cast<uint8_t>(getPacketDataType());
 }
 
 // ---- Telemetry_GNSS ----
 
 size_t Telemetry_GNSS::getPacketType() const {
-  return static_cast<size_t>(TelemetryType::GNSS);
+  return static_cast<size_t>(VCTR::packets::PacketType::Telemetry);
 }
 
 size_t Telemetry_GNSS::getPacketDataType() const {
@@ -33,11 +36,13 @@ size_t Telemetry_GNSS::getPacketDataType() const {
 }
 
 size_t Telemetry_GNSS::numBytes() const {
-  return sizeof(latitude) + sizeof(longitude) + sizeof(altitude);
+  return sizeof(latitude) + sizeof(longitude) + sizeof(altitude) + 2;
 }
 
 void Telemetry_GNSS::serialize(uint8_t *buffer) const {
   size_t offset = 0;
+  buffer[offset++] = static_cast<uint8_t>(getPacketType());
+  buffer[offset++] = static_cast<uint8_t>(getPacketDataType());
   memcpy(buffer + offset, &latitude, sizeof(latitude));
   offset += sizeof(latitude);
   memcpy(buffer + offset, &longitude, sizeof(longitude));
@@ -46,16 +51,21 @@ void Telemetry_GNSS::serialize(uint8_t *buffer) const {
   offset += sizeof(altitude);
 }
 
-Telemetry_GNSS Telemetry_GNSS::deserialize(const uint8_t *buffer) {
-  Telemetry_GNSS gnss;
+bool Telemetry_GNSS::deserialize(const uint8_t *buffer) {
   size_t offset = 0;
-  memcpy(&gnss.latitude, buffer + offset, sizeof(gnss.latitude));
-  offset += sizeof(gnss.latitude);
-  memcpy(&gnss.longitude, buffer + offset, sizeof(gnss.longitude));
-  offset += sizeof(gnss.longitude);
-  memcpy(&gnss.altitude, buffer + offset, sizeof(gnss.altitude));
-  offset += sizeof(gnss.altitude);
-  return gnss;
+  if (buffer[offset++] != static_cast<uint8_t>(getPacketType())) {
+    return false;
+  }
+  if (buffer[offset++] != static_cast<uint8_t>(getPacketDataType())) {
+    return false;
+  }
+  memcpy(&latitude, buffer + offset, sizeof(latitude));
+  offset += sizeof(latitude);
+  memcpy(&longitude, buffer + offset, sizeof(longitude));
+  offset += sizeof(longitude);
+  memcpy(&altitude, buffer + offset, sizeof(altitude));
+  offset += sizeof(altitude);
+  return true;
 }
 
 } // namespace VCTR::packets::telecoms

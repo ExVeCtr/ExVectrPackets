@@ -20,7 +20,7 @@ public:
 
   size_t numBytes() const;
   void serialize(uint8_t *buffer) const;
-  static RadioLinkPacket<Ax, Dx, LinkType> deserialize(const uint8_t *buffer);
+  bool deserialize(const uint8_t *buffer);
 };
 
 using RadioLinkPacket_A4D0 = RadioLinkPacket<4, 0, RadioLinkTypes::A4D0>;
