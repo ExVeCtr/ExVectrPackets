@@ -4,6 +4,7 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <stdint.h>
 
 #include "ExVectrCore/handler.hpp"
@@ -30,6 +31,44 @@ concept IsPacket = VCTR::Core::CanSerialize<T> && requires(const T a) {
   { a.getPacketType() } -> std::same_as<size_t>;
   { a.getPacketDataType() } -> std::same_as<size_t>;
 };
+
+} // namespace VCTR::packets
+
+namespace VCTR::packets {
+
+template <typename TYPE, size_t PACKETTYPE, size_t PACKETDATATYPE>
+class PacketCustom {
+public:
+  TYPE data;
+
+  size_t getPacketType() const { return PACKETTYPE; }
+  size_t getPacketDataType() const { return PACKETDATATYPE; }
+
+  size_t numBytes() const { return sizeof(TYPE) + 2 * sizeof(uint8_t); }
+  void serialize(uint8_t *buffer) const {
+    uint8_t packetType = static_cast<uint8_t>(getPacketType());
+    uint8_t packetDataType = static_cast<uint8_t>(getPacketDataType());
+    std::memcpy(buffer, &packetType, sizeof(uint8_t));
+    std::memcpy(buffer + sizeof(uint8_t), &packetDataType, sizeof(uint8_t));
+    std::memcpy(buffer + 2 * sizeof(uint8_t), &data, sizeof(TYPE));
+  }
+  bool deserialize(const uint8_t *buffer) {
+    uint8_t packetType;
+    uint8_t packetDataType;
+    std::memcpy(&packetType, buffer, sizeof(uint8_t));
+    std::memcpy(&packetDataType, buffer + sizeof(uint8_t), sizeof(uint8_t));
+    if (packetType != static_cast<uint8_t>(PACKETTYPE) ||
+        packetDataType != static_cast<uint8_t>(PACKETDATATYPE)) {
+      return false;
+    }
+    std::memcpy(&data, buffer + 2 * sizeof(uint8_t), sizeof(TYPE));
+    return true;
+  }
+};
+
+} // namespace VCTR::packets
+
+namespace VCTR::packets {
 
 class PacketManager {
 
