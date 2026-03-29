@@ -60,8 +60,9 @@ void RadioLinkPacket<Ax, Dx, LinkType>::serialize(uint8_t *buffer) const {
         static_cast<int32_t>(analogChannels[i]), -1000, 1000);
     const uint16_t value =
         static_cast<uint16_t>(((clamped + 1000) * 1023 + 1000) / 2000);
-    bitIndex =
-        writeBits(buffer, reinterpret_cast<uint8_t *>(&value), bitIndex, 10);
+    const uint8_t valueBytes[2] = {static_cast<uint8_t>(value & 0xFF),
+                                   static_cast<uint8_t>((value >> 8) & 0xFF)};
+    bitIndex = writeBits(buffer, valueBytes, bitIndex, 10);
   }
 
   for (size_t i = 0; i < Dx; ++i) {
@@ -89,8 +90,10 @@ bool RadioLinkPacket<Ax, Dx, LinkType>::deserialize(const uint8_t *buffer) {
   // Analog channels are packed first — must match serialize() order.
   for (size_t i = 0; i < Ax; ++i) {
     uint16_t value = 0;
-    bitIndex =
-        readBits(buffer, reinterpret_cast<uint8_t *>(&value), bitIndex, 10);
+    uint8_t valueBytes[2] = {0, 0};
+    bitIndex = readBits(buffer, valueBytes, bitIndex, 10);
+    value = static_cast<uint16_t>(valueBytes[0]) |
+            (static_cast<uint16_t>(valueBytes[1]) << 8);
     value &= 0x03FF;
     analogChannels[i] = static_cast<int16_t>(
         ((static_cast<int32_t>(value) * 2000 + 511) / 1023) - 1000);
