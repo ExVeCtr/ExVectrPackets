@@ -8,6 +8,7 @@
 
 #include "ExVectrCore/handler.hpp"
 #include "ExVectrCore/list_array.hpp"
+#include "ExVectrCore/print.hpp"
 
 #include "ExVectrCore/CanSerialize.hpp"
 
@@ -43,8 +44,6 @@ class PacketManager {
   PacketSendingHandler sendingHandler;
 
   struct PacketHandler {
-    size_t packetType;
-    size_t packetDataType;
     PacketReceivingHandler handler;
   };
 
@@ -73,21 +72,16 @@ public:
 
   template <IsPacket T>
   void addPacketReceiveHandler(std::function<void(const T &)> handler) {
-    receiveHandlers.append({T().getPacketType(), T().getPacketDataType(),
-                            [handler](const Core::ListArray<uint8_t> &data) {
-                              if (data.size() < 2) {
-                                return;
-                              }
-
-                              T packet;
-                              if (data.size() != packet.numBytes()) {
-                                return;
-                              }
-                              if (!packet.deserialize(data.getPtr())) {
-                                return;
-                              }
-                              handler(packet);
-                            }});
+    receiveHandlers.append({[handler](const Core::ListArray<uint8_t> &data) {
+      T packet;
+      if (data.size() != packet.numBytes()) {
+        return;
+      }
+      if (!packet.deserialize(data.getPtr())) {
+        return;
+      }
+      handler(packet);
+    }});
   }
 };
 
