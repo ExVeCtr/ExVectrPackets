@@ -1,5 +1,7 @@
 #include "ExVectrPackets/radiolink/packets/RadioLinkPackets.hpp"
 
+#include <algorithm>
+
 namespace VCTR::packets::radiolink /* Helper functions */ {
 
 size_t writeBits(uint8_t *bufferOut, const uint8_t *bufferIn,
@@ -54,8 +56,10 @@ void RadioLinkPacket<Ax, Dx, LinkType>::serialize(uint8_t *buffer) const {
   size_t bitIndex = 0;
 
   for (size_t i = 0; i < Ax; ++i) {
-    uint16_t value = static_cast<uint16_t>(float(analogChannels[i] + 1000) /
-                                           2000.0f * 1023.0f);
+    const int32_t clamped = std::clamp<int32_t>(
+        static_cast<int32_t>(analogChannels[i]), -1000, 1000);
+    const uint16_t value =
+        static_cast<uint16_t>(((clamped + 1000) * 1023 + 1000) / 2000);
     bitIndex =
         writeBits(buffer, reinterpret_cast<uint8_t *>(&value), bitIndex, 10);
   }
@@ -87,7 +91,9 @@ bool RadioLinkPacket<Ax, Dx, LinkType>::deserialize(const uint8_t *buffer) {
     uint16_t value = 0;
     bitIndex =
         readBits(buffer, reinterpret_cast<uint8_t *>(&value), bitIndex, 10);
-    analogChannels[i] = static_cast<int16_t>(value) - 1000;
+    value &= 0x03FF;
+    analogChannels[i] = static_cast<int16_t>(
+        ((static_cast<int32_t>(value) * 2000 + 511) / 1023) - 1000);
   }
 
   for (size_t i = 0; i < Dx; ++i) {
