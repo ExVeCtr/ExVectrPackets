@@ -43,12 +43,13 @@ size_t RadioLinkPacket<Ax, Dx, LinkType>::getPacketDataType() const {
 template <size_t Ax, size_t Dx, RadioLinkTypes LinkType>
 size_t RadioLinkPacket<Ax, Dx, LinkType>::numBytes() const {
   auto numBits = Ax * 10 + Dx * 2;
-  return (numBits + 7) / 8 + 2; // payload + packet type + packet data type
+  return (numBits + 7) / 8 +
+         1; // payload + 1 byte (6-bit packet type | 2-bit data type)
 }
 
 template <size_t Ax, size_t Dx, RadioLinkTypes LinkType>
 void RadioLinkPacket<Ax, Dx, LinkType>::serialize(uint8_t *buffer) const {
-  const size_t payloadNumBytes = numBytes() - 2;
+  const size_t payloadNumBytes = numBytes() - 1;
   for (size_t i = 0; i < payloadNumBytes; ++i) {
     buffer[i] = 0;
   }
@@ -70,18 +71,21 @@ void RadioLinkPacket<Ax, Dx, LinkType>::serialize(uint8_t *buffer) const {
     bitIndex = writeBits(buffer, &value, bitIndex, 2);
   }
 
-  buffer[payloadNumBytes] = static_cast<uint8_t>(getPacketType());
-  buffer[payloadNumBytes + 1] = static_cast<uint8_t>(getPacketDataType());
+  // Pack data type in lower 2 bits, packet type in upper 6 bits
+  buffer[payloadNumBytes] = static_cast<uint8_t>(
+      (getPacketDataType() & 0x03) | ((getPacketType() & 0x3F) << 2));
 }
 
 template <size_t Ax, size_t Dx, RadioLinkTypes LinkType>
 bool RadioLinkPacket<Ax, Dx, LinkType>::deserialize(const uint8_t *buffer) {
-  const size_t payloadNumBytes = numBytes() - 2;
-  if (buffer[payloadNumBytes] != static_cast<uint8_t>(getPacketType())) {
+  const size_t payloadNumBytes = numBytes() - 1;
+  const uint8_t typeByte = buffer[payloadNumBytes];
+  const uint8_t dataType = typeByte & 0x03;
+  const uint8_t packetType = (typeByte >> 2) & 0x3F;
+  if (packetType != static_cast<uint8_t>(getPacketType())) {
     return false;
   }
-  if (buffer[payloadNumBytes + 1] !=
-      static_cast<uint8_t>(getPacketDataType())) {
+  if (dataType != static_cast<uint8_t>(getPacketDataType())) {
     return false;
   }
 
