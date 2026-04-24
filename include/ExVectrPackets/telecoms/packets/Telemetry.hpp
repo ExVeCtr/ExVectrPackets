@@ -23,9 +23,8 @@ public:
 
 class Telemetry_GNSS {
 public:
-  uint32_t latitude = 0;  // degrees * 1e7
-  uint32_t longitude = 0; // degrees * 1e7
-  uint32_t altitude = 0;  // mm
+  uint16_t speed = 0; // CRSF GPS speed encoding
+  uint8_t satellites = 0;
 
   size_t getPacketType() const;
   size_t getPacketDataType() const;
@@ -37,9 +36,8 @@ public:
 
 class Telemetry_Battery {
 public:
-  float voltage = 0.0f;  // Volts, max expected range ~0-65.535V
-  float current = 0.0f;  // Amps, max expected range ~0-655.35A
-  float capacity = 0.0f; // mAh, max expected range ~0-655350 mAh
+  float voltage = 0.0f; // Volts, max expected range ~0-65.535V
+  float current = 0.0f; // Amps, max expected range ~0-655.35A
 
   size_t getPacketType() const;
   size_t getPacketDataType() const;

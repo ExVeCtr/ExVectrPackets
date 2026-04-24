@@ -36,19 +36,16 @@ size_t Telemetry_GNSS::getPacketDataType() const {
 }
 
 size_t Telemetry_GNSS::numBytes() const {
-  return sizeof(latitude) + sizeof(longitude) + sizeof(altitude) + 2;
+  return sizeof(speed) + sizeof(satellites) + 2;
 }
 
 void Telemetry_GNSS::serialize(uint8_t *buffer) const {
   size_t offset = 0;
   buffer[offset++] = static_cast<uint8_t>(getPacketType());
   buffer[offset++] = static_cast<uint8_t>(getPacketDataType());
-  memcpy(buffer + offset, &latitude, sizeof(latitude));
-  offset += sizeof(latitude);
-  memcpy(buffer + offset, &longitude, sizeof(longitude));
-  offset += sizeof(longitude);
-  memcpy(buffer + offset, &altitude, sizeof(altitude));
-  offset += sizeof(altitude);
+  memcpy(buffer + offset, &speed, sizeof(speed));
+  offset += sizeof(speed);
+  memcpy(buffer + offset, &satellites, sizeof(satellites));
 }
 
 bool Telemetry_GNSS::deserialize(const uint8_t *buffer) {
@@ -59,12 +56,9 @@ bool Telemetry_GNSS::deserialize(const uint8_t *buffer) {
   if (buffer[offset++] != static_cast<uint8_t>(getPacketDataType())) {
     return false;
   }
-  memcpy(&latitude, buffer + offset, sizeof(latitude));
-  offset += sizeof(latitude);
-  memcpy(&longitude, buffer + offset, sizeof(longitude));
-  offset += sizeof(longitude);
-  memcpy(&altitude, buffer + offset, sizeof(altitude));
-  offset += sizeof(altitude);
+  memcpy(&speed, buffer + offset, sizeof(speed));
+  offset += sizeof(speed);
+  memcpy(&satellites, buffer + offset, sizeof(satellites));
   return true;
 }
 
@@ -75,7 +69,7 @@ size_t Telemetry_Battery::getPacketType() const {
 size_t Telemetry_Battery::getPacketDataType() const {
   return static_cast<size_t>(TelemetryType::Battery);
 }
-size_t Telemetry_Battery::numBytes() const { return sizeof(uint16_t) * 3 + 2; }
+size_t Telemetry_Battery::numBytes() const { return sizeof(uint16_t) * 2 + 2; }
 void Telemetry_Battery::serialize(uint8_t *buffer) const {
   size_t offset = 0;
   uint16_t temp;
@@ -86,10 +80,6 @@ void Telemetry_Battery::serialize(uint8_t *buffer) const {
   offset += sizeof(temp);
   temp = (uint16_t)(current * 100.0f); // cA
   memcpy(buffer + offset, &temp, sizeof(temp));
-  offset += sizeof(temp);
-  temp = (uint16_t)(capacity); // d mAh
-  memcpy(buffer + offset, &temp, sizeof(temp));
-  offset += sizeof(temp);
 }
 bool Telemetry_Battery::deserialize(const uint8_t *buffer) {
   size_t offset = 0;
@@ -103,10 +93,6 @@ bool Telemetry_Battery::deserialize(const uint8_t *buffer) {
   offset += sizeof(temp);
   memcpy(&temp, buffer + offset, sizeof(temp));
   current = static_cast<float>(temp) / 100.0f;
-  offset += sizeof(temp);
-  memcpy(&temp, buffer + offset, sizeof(temp));
-  capacity = static_cast<float>(temp);
-  offset += sizeof(temp);
   return true;
 }
 
