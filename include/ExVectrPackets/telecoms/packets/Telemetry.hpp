@@ -23,7 +23,8 @@ public:
 
 class Telemetry_GNSS {
 public:
-  uint16_t speed = 0; // CRSF GPS speed encoding
+  uint16_t speed = 0;      // km/h
+  uint16_t altitude = 0;   // metres above sea level
   uint8_t satellites = 0;
 
   size_t getPacketType() const;

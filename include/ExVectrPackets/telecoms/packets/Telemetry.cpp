@@ -36,7 +36,7 @@ size_t Telemetry_GNSS::getPacketDataType() const {
 }
 
 size_t Telemetry_GNSS::numBytes() const {
-  return sizeof(speed) + sizeof(satellites) + 2;
+  return sizeof(speed) + sizeof(altitude) + sizeof(satellites) + 2;
 }
 
 void Telemetry_GNSS::serialize(uint8_t *buffer) const {
@@ -45,19 +45,21 @@ void Telemetry_GNSS::serialize(uint8_t *buffer) const {
   buffer[offset++] = static_cast<uint8_t>(getPacketDataType());
   memcpy(buffer + offset, &speed, sizeof(speed));
   offset += sizeof(speed);
+  memcpy(buffer + offset, &altitude, sizeof(altitude));
+  offset += sizeof(altitude);
   memcpy(buffer + offset, &satellites, sizeof(satellites));
 }
 
 bool Telemetry_GNSS::deserialize(const uint8_t *buffer) {
   size_t offset = 0;
-  if (buffer[offset++] != static_cast<uint8_t>(getPacketType())) {
+  if (buffer[offset++] != static_cast<uint8_t>(getPacketType()))
     return false;
-  }
-  if (buffer[offset++] != static_cast<uint8_t>(getPacketDataType())) {
+  if (buffer[offset++] != static_cast<uint8_t>(getPacketDataType()))
     return false;
-  }
   memcpy(&speed, buffer + offset, sizeof(speed));
   offset += sizeof(speed);
+  memcpy(&altitude, buffer + offset, sizeof(altitude));
+  offset += sizeof(altitude);
   memcpy(&satellites, buffer + offset, sizeof(satellites));
   return true;
 }
