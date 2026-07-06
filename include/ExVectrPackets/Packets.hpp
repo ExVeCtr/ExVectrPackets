@@ -114,7 +114,7 @@ public:
     receiveHandlers.append({[handler](const Core::ListArray<uint8_t> &data) {
       T packet;
       if (data.size() != packet.numBytes()) {
-        return;
+        // return;
       }
       if (!packet.deserialize(data.getPtr())) {
         return;

@@ -10,9 +10,18 @@
 
 namespace VCTR::packets::telecoms {
 
-enum class TelecommandType : size_t { Reboot, UpdateMode, MAX };
+enum class TelecommandType : size_t {
+  Reboot, //
+  UpdateMode,
+  MAX
+};
 
-enum class TelemetryType : size_t { Heartbeat, GNSS, Battery, MAX };
+enum class TelemetryType : size_t {
+  Heartbeat, //
+  GNSS = 5,
+  Battery,
+  MAX
+};
 
 } // namespace VCTR::packets::telecoms
 
