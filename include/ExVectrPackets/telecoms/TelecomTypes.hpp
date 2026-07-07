@@ -18,8 +18,11 @@ enum class TelecommandType : size_t {
 
 enum class TelemetryType : size_t {
   Heartbeat, //
-  GNSS = 5,
+  GNSS = 5,  ///< Speed/satellites/altitude -- see Telemetry_GNSS.
   Battery,
+  GNSSPosition, ///< Latitude/longitude -- see Telemetry_GNSSPosition. Kept
+                ///< separate from GNSS since lat+lon don't fit alongside
+                ///< the rest of the GPS fields in one OTA frame.
   MAX
 };
 

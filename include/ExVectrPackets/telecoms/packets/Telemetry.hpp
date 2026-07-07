@@ -21,10 +21,35 @@ public:
   bool deserialize(const uint8_t *buffer);
 };
 
+/**
+ * GPS "status" fields -- everything except position, which doesn't fit in
+ * the same OTA frame (see Telemetry_GNSSPosition).
+ */
 class Telemetry_GNSS {
 public:
   uint16_t speed = 0; // km/h
   uint8_t satellites = 0;
+  int16_t altitudeM = 0; // metres
+
+  size_t getPacketType() const;
+  size_t getPacketDataType() const;
+
+  size_t numBytes() const;
+  void serialize(uint8_t *buffer) const;
+  bool deserialize(const uint8_t *buffer);
+};
+
+/**
+ * GPS position. Sent as its own OTA frame separate from Telemetry_GNSS's
+ * other fields since latitude+longitude alone already use the full OTA
+ * frame budget. Wire-packed as 24-bit fixed-point (~2.8m resolution,
+ * plenty for telemetry display) rather than the 32-bit CRSF wire encoding,
+ * which wouldn't fit -- see Telemetry.cpp for the exact scale.
+ */
+class Telemetry_GNSSPosition {
+public:
+  double latitude = 0.0;  // degrees
+  double longitude = 0.0; // degrees
 
   size_t getPacketType() const;
   size_t getPacketDataType() const;

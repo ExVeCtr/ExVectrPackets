@@ -1,5 +1,7 @@
 #include "ExVectrPackets/crsf/packets/CRSFPackets.hpp"
 
+#include <cstring>
+
 namespace VCTR::packets::crsf /* Helper functions */ {
 
 constexpr uint8_t CRSF_SYNC_BYTE = 0xC8;
@@ -71,6 +73,46 @@ int32_t readI32BE(const uint8_t *buffer) {
                       ((uint32_t)buffer[2] << 8) | (uint32_t)buffer[3];
   return (int32_t)u;
 }
+
+void writeU32BE(uint8_t *buffer, uint32_t value) {
+  writeI32BE(buffer, (int32_t)value);
+}
+
+uint32_t readU32BE(const uint8_t *buffer) {
+  return (uint32_t)readI32BE(buffer);
+}
+
+// Writes `str` (truncated to at most maxStrLen source bytes) into buffer as
+// a null-terminated string. Returns the number of bytes written, including
+// the terminating null -- i.e. how far to advance the write cursor.
+size_t writeCString(uint8_t *buffer, const char *str, size_t maxStrLen) {
+  const size_t len = strnlen(str, maxStrLen);
+  memcpy(buffer, str, len);
+  buffer[len] = 0;
+  return len + 1;
+}
+
+// Reads a null-terminated string out of buffer (bounded by `limit` source
+// bytes, to avoid running past the end of a received frame) into `out`
+// (bounded by `outSize`, always null-terminated on return). Returns the
+// number of source bytes consumed, including the terminating null if one was
+// found within `limit` -- i.e. how far to advance the read cursor.
+size_t readCString(const uint8_t *buffer, size_t limit, char *out, size_t outSize) {
+  size_t i = 0;
+  while (i < limit && buffer[i] != 0) {
+    if (i + 1 < outSize) {
+      out[i] = (char)buffer[i];
+    }
+    i++;
+  }
+  out[(i < outSize) ? i : outSize - 1] = 0;
+  return (i < limit) ? i + 1 : i;
+}
+
+// CRSF_COMMAND / CRSF_INFO data type ids (see extern/CRSF details.md,
+// "Parameter Type Definitions & Hidden Bit").
+constexpr uint8_t CRSF_DATA_TYPE_COMMAND = 0x0D;
+constexpr uint8_t CRSF_DATA_TYPE_INFO = 0x0C;
 
 // 16 x 11-bit channels packed LSB-first into 22 bytes (crsf_channels_s
 // layout). Mirrors CRSFOutput::packChannels, plus the missing unpack side.
@@ -320,7 +362,12 @@ size_t CRSFPacket_CommandRxBind::numBytes() const {
 }
 
 void CRSFPacket_CommandRxBind::serialize(uint8_t *buffer) const {
-  buffer[0] = destAddress; // sync byte == destination address for extended frames
+  // ELRS/EdgeTX always lead every frame -- including extended-header ones --
+  // with the 0xC8 serial sync byte (see ExpressLRS CRSFRouter::SetHeaderAndCrc);
+  // the real destination lives in buffer[3]. Leading with the destination
+  // address instead (though CRSF-spec-legal) makes EdgeTX's telemetry layer
+  // drop the reply, so the handset never sees it.
+  buffer[0] = CRSF_SYNC_BYTE;
   buffer[1] = 7; // type+dest+orig+cmd+subcmd+cmdCrc+crc
   buffer[2] = static_cast<uint8_t>(CRSFFrameType::Command);
   buffer[3] = destAddress;
@@ -350,6 +397,402 @@ bool CRSFPacket_CommandRxBind::deserialize(const uint8_t *buffer) {
   }
   destAddress = buffer[3];
   origAddress = buffer[4];
+  return true;
+}
+
+} // namespace VCTR::packets::crsf
+
+namespace VCTR::packets::crsf /* CRSFPacket_ParameterPing */ {
+
+size_t CRSFPacket_ParameterPing::getPacketType() const {
+  return static_cast<size_t>(VCTR::packets::PacketType::CRSF);
+}
+
+size_t CRSFPacket_ParameterPing::getPacketDataType() const {
+  return static_cast<size_t>(CRSFFrameType::ParameterPing);
+}
+
+size_t CRSFPacket_ParameterPing::numBytes() const { return 2 + 1 + 2 + 1; }
+
+void CRSFPacket_ParameterPing::serialize(uint8_t *buffer) const {
+  buffer[0] = CRSF_SYNC_BYTE; // see CRSFPacket_CommandRxBind::serialize
+  buffer[1] = 4;              // type+dest+orig+crc, no payload
+  buffer[2] = static_cast<uint8_t>(CRSFFrameType::ParameterPing);
+  buffer[3] = destAddress;
+  buffer[4] = origAddress;
+  buffer[5] = crc8_d5(buffer + 2, 3);
+}
+
+bool CRSFPacket_ParameterPing::deserialize(const uint8_t *buffer) {
+  if (buffer[1] != 4) {
+    return false;
+  }
+  if (buffer[2] != static_cast<uint8_t>(CRSFFrameType::ParameterPing)) {
+    return false;
+  }
+  if (crc8_d5(buffer + 2, 3) != buffer[5]) {
+    return false;
+  }
+  destAddress = buffer[3];
+  origAddress = buffer[4];
+  return true;
+}
+
+} // namespace VCTR::packets::crsf
+
+namespace VCTR::packets::crsf /* CRSFPacket_ParameterDeviceInfo */ {
+
+size_t CRSFPacket_ParameterDeviceInfo::getPacketType() const {
+  return static_cast<size_t>(VCTR::packets::PacketType::CRSF);
+}
+
+size_t CRSFPacket_ParameterDeviceInfo::getPacketDataType() const {
+  return static_cast<size_t>(CRSFFrameType::ParameterDeviceInfo);
+}
+
+size_t CRSFPacket_ParameterDeviceInfo::numBytes() const {
+  const size_t nameLen = strnlen(deviceName, sizeof(deviceName) - 1);
+  // sync+len, type, dest+orig, name+null, serial+hw+fw, total+ver, crc
+  return 2 + 1 + 2 + (nameLen + 1) + (4 + 4 + 4) + 1 + 1 + 1;
+}
+
+void CRSFPacket_ParameterDeviceInfo::serialize(uint8_t *buffer) const {
+  buffer[0] = CRSF_SYNC_BYTE; // see CRSFPacket_CommandRxBind::serialize
+  buffer[2] = static_cast<uint8_t>(CRSFFrameType::ParameterDeviceInfo);
+  buffer[3] = destAddress;
+  buffer[4] = origAddress;
+
+  uint8_t *p = buffer + 5;
+  p += writeCString(p, deviceName, sizeof(deviceName) - 1);
+  writeU32BE(p, serialNumber);
+  p += 4;
+  writeU32BE(p, hardwareId);
+  p += 4;
+  writeU32BE(p, firmwareId);
+  p += 4;
+  *p++ = parametersTotal;
+  *p++ = parameterVersion;
+
+  const size_t typeAndPayloadLen = (size_t)(p - (buffer + 2));
+  buffer[1] = (uint8_t)(typeAndPayloadLen + 1); // + crc
+  *p = crc8_d5(buffer + 2, typeAndPayloadLen);
+}
+
+bool CRSFPacket_ParameterDeviceInfo::deserialize(const uint8_t *buffer) {
+  if (buffer[2] != static_cast<uint8_t>(CRSFFrameType::ParameterDeviceInfo)) {
+    return false;
+  }
+  const uint8_t frameLen = buffer[1];
+  const size_t totalLen = (size_t)frameLen + 2;
+  if (totalLen < 8 || totalLen > 64) {
+    return false;
+  }
+  if (crc8_d5(buffer + 2, frameLen - 1) != buffer[totalLen - 1]) {
+    return false;
+  }
+
+  destAddress = buffer[3];
+  origAddress = buffer[4];
+
+  const uint8_t *p = buffer + 5;
+  const uint8_t *const payloadEnd = buffer + totalLen - 1; // exclude crc byte
+  p += readCString(p, (size_t)(payloadEnd - p), deviceName, sizeof(deviceName));
+  if (p + 4 + 4 + 4 + 1 + 1 > payloadEnd) {
+    return false;
+  }
+  serialNumber = readU32BE(p);
+  p += 4;
+  hardwareId = readU32BE(p);
+  p += 4;
+  firmwareId = readU32BE(p);
+  p += 4;
+  parametersTotal = *p++;
+  parameterVersion = *p++;
+  return true;
+}
+
+} // namespace VCTR::packets::crsf
+
+namespace VCTR::packets::crsf /* CRSFPacket_ParameterRead */ {
+
+size_t CRSFPacket_ParameterRead::getPacketType() const {
+  return static_cast<size_t>(VCTR::packets::PacketType::CRSF);
+}
+
+size_t CRSFPacket_ParameterRead::getPacketDataType() const {
+  return static_cast<size_t>(CRSFFrameType::ParameterRead);
+}
+
+size_t CRSFPacket_ParameterRead::numBytes() const { return 2 + 1 + 2 + 2 + 1; }
+
+void CRSFPacket_ParameterRead::serialize(uint8_t *buffer) const {
+  buffer[0] = CRSF_SYNC_BYTE; // see CRSFPacket_CommandRxBind::serialize
+  buffer[1] = 6; // type+dest+orig+paramNum+chunkNum+crc
+  buffer[2] = static_cast<uint8_t>(CRSFFrameType::ParameterRead);
+  buffer[3] = destAddress;
+  buffer[4] = origAddress;
+  buffer[5] = parameterNumber;
+  buffer[6] = chunkNumber;
+  buffer[7] = crc8_d5(buffer + 2, 5);
+}
+
+bool CRSFPacket_ParameterRead::deserialize(const uint8_t *buffer) {
+  if (buffer[1] != 6) {
+    return false;
+  }
+  if (buffer[2] != static_cast<uint8_t>(CRSFFrameType::ParameterRead)) {
+    return false;
+  }
+  if (crc8_d5(buffer + 2, 5) != buffer[7]) {
+    return false;
+  }
+  destAddress = buffer[3];
+  origAddress = buffer[4];
+  parameterNumber = buffer[5];
+  chunkNumber = buffer[6];
+  return true;
+}
+
+} // namespace VCTR::packets::crsf
+
+namespace VCTR::packets::crsf /* CRSFPacket_ParameterWrite */ {
+
+size_t CRSFPacket_ParameterWrite::getPacketType() const {
+  return static_cast<size_t>(VCTR::packets::PacketType::CRSF);
+}
+
+size_t CRSFPacket_ParameterWrite::getPacketDataType() const {
+  return static_cast<size_t>(CRSFFrameType::ParameterWrite);
+}
+
+size_t CRSFPacket_ParameterWrite::numBytes() const { return 2 + 1 + 2 + 2 + 1; }
+
+void CRSFPacket_ParameterWrite::serialize(uint8_t *buffer) const {
+  buffer[0] = CRSF_SYNC_BYTE; // see CRSFPacket_CommandRxBind::serialize
+  buffer[1] = 6; // type+dest+orig+paramNum+status+crc
+  buffer[2] = static_cast<uint8_t>(CRSFFrameType::ParameterWrite);
+  buffer[3] = destAddress;
+  buffer[4] = origAddress;
+  buffer[5] = parameterNumber;
+  buffer[6] = commandStatus;
+  buffer[7] = crc8_d5(buffer + 2, 5);
+}
+
+bool CRSFPacket_ParameterWrite::deserialize(const uint8_t *buffer) {
+  if (buffer[1] != 6) {
+    return false;
+  }
+  if (buffer[2] != static_cast<uint8_t>(CRSFFrameType::ParameterWrite)) {
+    return false;
+  }
+  if (crc8_d5(buffer + 2, 5) != buffer[7]) {
+    return false;
+  }
+  destAddress = buffer[3];
+  origAddress = buffer[4];
+  parameterNumber = buffer[5];
+  commandStatus = buffer[6];
+  return true;
+}
+
+} // namespace VCTR::packets::crsf
+
+namespace VCTR::packets::crsf /* CRSFPacket_ParameterSettingsEntryCommand */ {
+
+size_t CRSFPacket_ParameterSettingsEntryCommand::getPacketType() const {
+  return static_cast<size_t>(VCTR::packets::PacketType::CRSF);
+}
+
+size_t CRSFPacket_ParameterSettingsEntryCommand::getPacketDataType() const {
+  return static_cast<size_t>(CRSFFrameType::ParameterSettingsEntry);
+}
+
+size_t CRSFPacket_ParameterSettingsEntryCommand::numBytes() const {
+  const size_t nameLen = strnlen(name, sizeof(name) - 1);
+  const size_t infoLen = strnlen(info, sizeof(info) - 1);
+  // sync+len, type, dest+orig, paramNum+chunksRemaining, parent+dataType,
+  // name+null, status+timeout, info+null, crc
+  return 2 + 1 + 2 + 2 + 2 + (nameLen + 1) + 2 + (infoLen + 1) + 1;
+}
+
+void CRSFPacket_ParameterSettingsEntryCommand::serialize(uint8_t *buffer) const {
+  buffer[0] = CRSF_SYNC_BYTE; // see CRSFPacket_CommandRxBind::serialize
+  buffer[2] = static_cast<uint8_t>(CRSFFrameType::ParameterSettingsEntry);
+  buffer[3] = destAddress;
+  buffer[4] = origAddress;
+  buffer[5] = parameterNumber;
+  buffer[6] = 0; // chunks remaining -- name/info always fit in one frame
+  buffer[7] = parentFolder;
+  buffer[8] = CRSF_DATA_TYPE_COMMAND;
+
+  uint8_t *p = buffer + 9;
+  p += writeCString(p, name, sizeof(name) - 1);
+  *p++ = status;
+  *p++ = timeout;
+  p += writeCString(p, info, sizeof(info) - 1);
+
+  const size_t typeAndPayloadLen = (size_t)(p - (buffer + 2));
+  buffer[1] = (uint8_t)(typeAndPayloadLen + 1); // + crc
+  *p = crc8_d5(buffer + 2, typeAndPayloadLen);
+}
+
+bool CRSFPacket_ParameterSettingsEntryCommand::deserialize(const uint8_t *buffer) {
+  if (buffer[2] != static_cast<uint8_t>(CRSFFrameType::ParameterSettingsEntry)) {
+    return false;
+  }
+  const uint8_t frameLen = buffer[1];
+  const size_t totalLen = (size_t)frameLen + 2;
+  if (totalLen < 11 || totalLen > 64) {
+    return false;
+  }
+  if (crc8_d5(buffer + 2, frameLen - 1) != buffer[totalLen - 1]) {
+    return false;
+  }
+  if (buffer[8] != CRSF_DATA_TYPE_COMMAND) {
+    return false;
+  }
+
+  destAddress = buffer[3];
+  origAddress = buffer[4];
+  parameterNumber = buffer[5];
+  // buffer[6], chunks remaining, is ignored -- this device never sends more
+  // than one chunk, and never needs to reassemble one either.
+  parentFolder = buffer[7];
+
+  const uint8_t *p = buffer + 9;
+  const uint8_t *const payloadEnd = buffer + totalLen - 1; // exclude crc byte
+  p += readCString(p, (size_t)(payloadEnd - p), name, sizeof(name));
+  if (p + 2 > payloadEnd) {
+    return false;
+  }
+  status = *p++;
+  timeout = *p++;
+  readCString(p, (size_t)(payloadEnd - p), info, sizeof(info));
+  return true;
+}
+
+} // namespace VCTR::packets::crsf
+
+namespace VCTR::packets::crsf /* CRSFPacket_ParameterSettingsEntryInfo */ {
+
+size_t CRSFPacket_ParameterSettingsEntryInfo::getPacketType() const {
+  return static_cast<size_t>(VCTR::packets::PacketType::CRSF);
+}
+
+size_t CRSFPacket_ParameterSettingsEntryInfo::getPacketDataType() const {
+  return static_cast<size_t>(CRSFFrameType::ParameterSettingsEntry);
+}
+
+size_t CRSFPacket_ParameterSettingsEntryInfo::numBytes() const {
+  const size_t nameLen = strnlen(name, sizeof(name) - 1);
+  const size_t infoLen = strnlen(info, sizeof(info) - 1);
+  // sync+len, type, dest+orig, paramNum+chunksRemaining, parent+dataType,
+  // name+null, info+null, crc
+  return 2 + 1 + 2 + 2 + 2 + (nameLen + 1) + (infoLen + 1) + 1;
+}
+
+void CRSFPacket_ParameterSettingsEntryInfo::serialize(uint8_t *buffer) const {
+  buffer[0] = CRSF_SYNC_BYTE; // see CRSFPacket_CommandRxBind::serialize
+  buffer[2] = static_cast<uint8_t>(CRSFFrameType::ParameterSettingsEntry);
+  buffer[3] = destAddress;
+  buffer[4] = origAddress;
+  buffer[5] = parameterNumber;
+  buffer[6] = 0; // chunks remaining -- name/info always fit in one frame
+  buffer[7] = parentFolder;
+  buffer[8] = CRSF_DATA_TYPE_INFO;
+
+  uint8_t *p = buffer + 9;
+  p += writeCString(p, name, sizeof(name) - 1);
+  p += writeCString(p, info, sizeof(info) - 1);
+
+  const size_t typeAndPayloadLen = (size_t)(p - (buffer + 2));
+  buffer[1] = (uint8_t)(typeAndPayloadLen + 1); // + crc
+  *p = crc8_d5(buffer + 2, typeAndPayloadLen);
+}
+
+bool CRSFPacket_ParameterSettingsEntryInfo::deserialize(const uint8_t *buffer) {
+  if (buffer[2] != static_cast<uint8_t>(CRSFFrameType::ParameterSettingsEntry)) {
+    return false;
+  }
+  const uint8_t frameLen = buffer[1];
+  const size_t totalLen = (size_t)frameLen + 2;
+  if (totalLen < 10 || totalLen > 64) {
+    return false;
+  }
+  if (crc8_d5(buffer + 2, frameLen - 1) != buffer[totalLen - 1]) {
+    return false;
+  }
+  if (buffer[8] != CRSF_DATA_TYPE_INFO) {
+    return false;
+  }
+
+  destAddress = buffer[3];
+  origAddress = buffer[4];
+  parameterNumber = buffer[5];
+  parentFolder = buffer[7];
+
+  const uint8_t *p = buffer + 9;
+  const uint8_t *const payloadEnd = buffer + totalLen - 1; // exclude crc byte
+  p += readCString(p, (size_t)(payloadEnd - p), name, sizeof(name));
+  readCString(p, (size_t)(payloadEnd - p), info, sizeof(info));
+  return true;
+}
+
+} // namespace VCTR::packets::crsf
+
+namespace VCTR::packets::crsf /* CRSFPacket_ElrsStatus */ {
+
+size_t CRSFPacket_ElrsStatus::getPacketType() const {
+  return static_cast<size_t>(VCTR::packets::PacketType::CRSF);
+}
+
+size_t CRSFPacket_ElrsStatus::getPacketDataType() const {
+  return static_cast<size_t>(CRSFFrameType::ElrsStatus);
+}
+
+size_t CRSFPacket_ElrsStatus::numBytes() const {
+  const size_t infoLen = strnlen(info, sizeof(info) - 1);
+  // sync+len, type, dest+orig, pktsBad, pktsGood(2), flags, info+null, crc
+  return 2 + 1 + 2 + 1 + 2 + 1 + (infoLen + 1) + 1;
+}
+
+void CRSFPacket_ElrsStatus::serialize(uint8_t *buffer) const {
+  buffer[0] = CRSF_SYNC_BYTE; // see CRSFPacket_CommandRxBind::serialize
+  buffer[2] = static_cast<uint8_t>(CRSFFrameType::ElrsStatus);
+  buffer[3] = destAddress;
+  buffer[4] = origAddress;
+  buffer[5] = pktsBad;
+  writeU16BE(buffer + 6, pktsGood);
+  buffer[8] = flags;
+
+  uint8_t *p = buffer + 9;
+  p += writeCString(p, info, sizeof(info) - 1);
+
+  const size_t typeAndPayloadLen = (size_t)(p - (buffer + 2));
+  buffer[1] = (uint8_t)(typeAndPayloadLen + 1); // + crc
+  *p = crc8_d5(buffer + 2, typeAndPayloadLen);
+}
+
+bool CRSFPacket_ElrsStatus::deserialize(const uint8_t *buffer) {
+  if (buffer[2] != static_cast<uint8_t>(CRSFFrameType::ElrsStatus)) {
+    return false;
+  }
+  const uint8_t frameLen = buffer[1];
+  const size_t totalLen = (size_t)frameLen + 2;
+  if (totalLen < 10 || totalLen > 64) {
+    return false;
+  }
+  if (crc8_d5(buffer + 2, frameLen - 1) != buffer[totalLen - 1]) {
+    return false;
+  }
+  destAddress = buffer[3];
+  origAddress = buffer[4];
+  pktsBad = buffer[5];
+  pktsGood = readU16BE(buffer + 6);
+  flags = buffer[8];
+  const uint8_t *p = buffer + 9;
+  const uint8_t *const payloadEnd = buffer + totalLen - 1; // exclude crc byte
+  readCString(p, (size_t)(payloadEnd - p), info, sizeof(info));
   return true;
 }
 
