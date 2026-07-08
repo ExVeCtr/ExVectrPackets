@@ -142,7 +142,10 @@ public:
   uint32_t serialNumber = 0x454C5253;
   uint32_t hardwareId = 0;
   uint32_t firmwareId = 0;
-  uint8_t parametersTotal = 2; // Bind (1) + TX Temp info (2).
+  // Stats first: TX Temp (1), RX runtime/desync/FHSS offset/FHSS interval
+  // (2-5), TX/RX missed slots (6-7); then Dyn Power enable/min/max (8-10);
+  // then TX/RX Upload Mode (11-12).
+  uint8_t parametersTotal = 12;
   uint8_t parameterVersion = 0;
 
   size_t getPacketType() const;
@@ -239,6 +242,37 @@ public:
   uint8_t parentFolder = 0; // 0 = root folder
   char name[16] = "TX Temp";
   char info[32] = "";
+
+  size_t getPacketType() const;
+  size_t getPacketDataType() const;
+
+  size_t numBytes() const;
+  void serialize(uint8_t *buffer) const;
+  bool deserialize(const uint8_t *buffer);
+};
+
+/**
+ * CRSF frame type 0x2B, Parameter Settings (Entry), TEXT_SELECTION data type.
+ * A menu of string options the handset can cycle through and write back the
+ * chosen index of -- used here for the dynamic-power enable/min/max controls
+ * (see CRSFRcInput's parameter-3/4/5 handling). Shares its wire frame type
+ * (0x2B) with the Command/Info entry classes above; see
+ * CRSFPacket_ParameterSettingsEntryInfo's doc comment for why that's fine.
+ * Always sent as a single chunk.
+ */
+class CRSFPacket_ParameterSettingsEntryTextSelection {
+public:
+  uint8_t destAddress = 0xEA;
+  uint8_t origAddress = 0xEE;
+  uint8_t parameterNumber = 0;
+  uint8_t parentFolder = 0;      // 0 = root folder
+  char name[16] = "";
+  char options[32] = "";         // ';'-delimited list of option labels
+  uint8_t value = 0;             // current selection, index into options
+  uint8_t min = 0;               // always 0
+  uint8_t max = 0;               // index of the last option
+  uint8_t defaultValue = 0;      // index shown as the "default" selection
+  char unit[8] = "";
 
   size_t getPacketType() const;
   size_t getPacketDataType() const;

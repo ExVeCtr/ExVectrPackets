@@ -109,8 +109,9 @@ size_t readCString(const uint8_t *buffer, size_t limit, char *out, size_t outSiz
   return (i < limit) ? i + 1 : i;
 }
 
-// CRSF_COMMAND / CRSF_INFO data type ids (see extern/CRSF details.md,
-// "Parameter Type Definitions & Hidden Bit").
+// CRSF_TEXT_SELECTION / CRSF_INFO / CRSF_COMMAND data type ids (see
+// extern/CRSF details.md, "Parameter Type Definitions & Hidden Bit").
+constexpr uint8_t CRSF_DATA_TYPE_TEXT_SELECTION = 0x09;
 constexpr uint8_t CRSF_DATA_TYPE_COMMAND = 0x0D;
 constexpr uint8_t CRSF_DATA_TYPE_INFO = 0x0C;
 
@@ -668,6 +669,90 @@ bool CRSFPacket_ParameterSettingsEntryCommand::deserialize(const uint8_t *buffer
   status = *p++;
   timeout = *p++;
   readCString(p, (size_t)(payloadEnd - p), info, sizeof(info));
+  return true;
+}
+
+} // namespace VCTR::packets::crsf
+
+namespace VCTR::packets::crsf /* CRSFPacket_ParameterSettingsEntryTextSelection */ {
+
+size_t CRSFPacket_ParameterSettingsEntryTextSelection::getPacketType() const {
+  return static_cast<size_t>(VCTR::packets::PacketType::CRSF);
+}
+
+size_t CRSFPacket_ParameterSettingsEntryTextSelection::getPacketDataType() const {
+  return static_cast<size_t>(CRSFFrameType::ParameterSettingsEntry);
+}
+
+size_t CRSFPacket_ParameterSettingsEntryTextSelection::numBytes() const {
+  const size_t nameLen = strnlen(name, sizeof(name) - 1);
+  const size_t optionsLen = strnlen(options, sizeof(options) - 1);
+  const size_t unitLen = strnlen(unit, sizeof(unit) - 1);
+  // sync+len, type, dest+orig, paramNum+chunksRemaining, parent+dataType,
+  // name+null, options+null, value+min+max+default, unit+null, crc
+  return 2 + 1 + 2 + 2 + 2 + (nameLen + 1) + (optionsLen + 1) + 4 +
+         (unitLen + 1) + 1;
+}
+
+void CRSFPacket_ParameterSettingsEntryTextSelection::serialize(
+    uint8_t *buffer) const {
+  buffer[0] = CRSF_SYNC_BYTE; // see CRSFPacket_CommandRxBind::serialize
+  buffer[2] = static_cast<uint8_t>(CRSFFrameType::ParameterSettingsEntry);
+  buffer[3] = destAddress;
+  buffer[4] = origAddress;
+  buffer[5] = parameterNumber;
+  buffer[6] = 0; // chunks remaining -- name/options/unit always fit in one frame
+  buffer[7] = parentFolder;
+  buffer[8] = CRSF_DATA_TYPE_TEXT_SELECTION;
+
+  uint8_t *p = buffer + 9;
+  p += writeCString(p, name, sizeof(name) - 1);
+  p += writeCString(p, options, sizeof(options) - 1);
+  *p++ = value;
+  *p++ = min;
+  *p++ = max;
+  *p++ = defaultValue;
+  p += writeCString(p, unit, sizeof(unit) - 1);
+
+  const size_t typeAndPayloadLen = (size_t)(p - (buffer + 2));
+  buffer[1] = (uint8_t)(typeAndPayloadLen + 1); // + crc
+  *p = crc8_d5(buffer + 2, typeAndPayloadLen);
+}
+
+bool CRSFPacket_ParameterSettingsEntryTextSelection::deserialize(
+    const uint8_t *buffer) {
+  if (buffer[2] != static_cast<uint8_t>(CRSFFrameType::ParameterSettingsEntry)) {
+    return false;
+  }
+  const uint8_t frameLen = buffer[1];
+  const size_t totalLen = (size_t)frameLen + 2;
+  if (totalLen < 13 || totalLen > 64) {
+    return false;
+  }
+  if (crc8_d5(buffer + 2, frameLen - 1) != buffer[totalLen - 1]) {
+    return false;
+  }
+  if (buffer[8] != CRSF_DATA_TYPE_TEXT_SELECTION) {
+    return false;
+  }
+
+  destAddress = buffer[3];
+  origAddress = buffer[4];
+  parameterNumber = buffer[5];
+  parentFolder = buffer[7];
+
+  const uint8_t *p = buffer + 9;
+  const uint8_t *const payloadEnd = buffer + totalLen - 1; // exclude crc byte
+  p += readCString(p, (size_t)(payloadEnd - p), name, sizeof(name));
+  p += readCString(p, (size_t)(payloadEnd - p), options, sizeof(options));
+  if (p + 4 > payloadEnd) {
+    return false;
+  }
+  value = *p++;
+  min = *p++;
+  max = *p++;
+  defaultValue = *p++;
+  readCString(p, (size_t)(payloadEnd - p), unit, sizeof(unit));
   return true;
 }
 
