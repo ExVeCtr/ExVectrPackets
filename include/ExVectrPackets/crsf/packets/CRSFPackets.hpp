@@ -144,8 +144,13 @@ public:
   uint32_t firmwareId = 0;
   // Stats first: TX Temp (1), RX runtime/desync/FHSS offset/FHSS interval
   // (2-5), TX/RX missed slots (6-7); then Dyn Power enable/min/max (8-10);
-  // then TX/RX Upload Mode (11-12).
-  uint8_t parametersTotal = 12;
+  // then TX/RX Upload Mode (11-12); then bench-test commands RX Block Test/
+  // TX Desync Test/RX Force Search (13-15); then RX Sync Offset readout +/-
+  // buttons (16-18). The handset only ever requests parameter numbers
+  // 1..parametersTotal, so this must be bumped every time a parameter is
+  // added -- forgetting to is exactly why a newly-added entry is invisible
+  // in the Lua menu despite the device answering reads for it.
+  uint8_t parametersTotal = 18;
   uint8_t parameterVersion = 0;
 
   size_t getPacketType() const;
