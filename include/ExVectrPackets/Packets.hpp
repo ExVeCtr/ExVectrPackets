@@ -16,11 +16,12 @@
 namespace VCTR::packets {
 
 enum class PacketType : size_t {
-  Telecommand, // Telecoms
-  Telemetry,   // Telecoms
-  RadioLink,   // RadioLink
-  CRSF,        // CRSF
-  MAX          //
+  Telecommand,  // Telecoms
+  Telemetry,    // Telecoms
+  RadioLink,    // RadioLink
+  CRSF,         // CRSF
+  RadioLinkMux, // RadioLink multiplexed channels (RadioLinkMuxPackets.hpp)
+  MAX           //
 };
 
 } // namespace VCTR::packets

@@ -9,6 +9,14 @@
 
 namespace VCTR::packets::radiolink {
 
+/// Bit-level (de)serialization helpers shared by the RadioLink packet
+/// implementations (defined in RadioLinkPackets.cpp). Both operate LSB-first
+/// on little-endian bit streams.
+size_t writeBits(uint8_t *bufferOut, const uint8_t *bufferIn,
+                 size_t startBitIndex, size_t numBits);
+size_t readBits(const uint8_t *bufferIn, uint8_t *bufferOut,
+                size_t startBitIndex, size_t numBits);
+
 template <size_t Ax, size_t Dx, RadioLinkTypes LinkType> class RadioLinkPacket {
 public:
   // Usually 4 ch with roll, pitch, yaw, thr
