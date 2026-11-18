@@ -334,9 +334,8 @@ struct RcState {
     static constexpr int32_t kChMax = 1000;
     static constexpr int32_t kChInvalid = -32768;
     static constexpr uint8_t kFlagsSourceOk = uint8_t(1u << 0);
-    static constexpr uint8_t kFlagsMotorEnable = uint8_t(1u << 1);
 
-    uint8_t flags = {}; // SOURCE_OK: input fresh. MOTOR_ENABLE: operator says motors may run (hard interlock, acted on only after an observed disable-to-enable transition and valid for 1 s).
+    uint8_t flags = {}; // SOURCE_OK: the handset data is valid and fresh. Bits 1..7 are reserved (send 0, ignore on receive). RC_STATE is deliberately generic: only sticks, switches and source validity, no vehicle-specific meaning.
     uint8_t reserved = {};
     int16_t ch[16] = {}; // -1000..1000, 0 = centre, CH_INVALID = channel not provided
 

@@ -269,8 +269,7 @@ class RcState:
     CH_MAX: ClassVar[int] = 1000
     CH_INVALID: ClassVar[int] = -32768
     FLAGS_SOURCE_OK: ClassVar[int] = 1
-    FLAGS_MOTOR_ENABLE: ClassVar[int] = 2
-    flags: int = 0  # SOURCE_OK: input fresh. MOTOR_ENABLE: operator says motors may run (hard interlock, acted on only after an observed disable-to-enable transition and valid for 1 s).
+    flags: int = 0  # SOURCE_OK: the handset data is valid and fresh. Bits 1..7 are reserved (send 0, ignore on receive). RC_STATE is deliberately generic: only sticks, switches and source validity, no vehicle-specific meaning.
     reserved: int = 0
     ch: list[int] = dataclasses.field(default_factory=lambda: [0] * 16)  # -1000..1000, 0 = centre, CH_INVALID = channel not provided
 

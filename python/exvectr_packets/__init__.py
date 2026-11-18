@@ -5,7 +5,7 @@ from .starship import *  # noqa: F401,F403
 from . import common, starship  # noqa: E402
 
 #: FNV-1a-32 over the canonical serialisation of all schema files (carried in heartbeats).
-SCHEMA_HASH = 0x7BD02E0B
+SCHEMA_HASH = 0x6F080F8F
 
 #: port -> packet class
 PACKETS_BY_PORT = {
