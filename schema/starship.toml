@@ -1,0 +1,166 @@
+# Starship vehicle packets (network-design.md 3.5.6, adapted by the user decisions in its Revision 1 box).
+#
+# Two telemetry sets:
+#   AIR set (radio, ports < 0x80, bare minimum, fixed-point): VEHICLE_STATUS, AIR_POSE, plus HANDSET_TELEM and
+#     LINK_STATS from common.toml.
+#   USB set (everything, ports >= 0x80 are USB only, f32/f64): the AIR set packets that have a USB rate, plus
+#     POSE, ACTUATORS, MISSION, GNSS and the debug packets. AIR_POSE is not sent on USB (POSE supersedes it).
+# Packets are grouped by rate class: POSE is the fast class, VEHICLE_STATUS/MISSION/ACTUATORS the slower ones.
+# All decoded physical values are SI. Timestamps t_us / t_ns are integer counters (wrap handling needs integers).
+# Frames: NWU world, attitude q = [w,x,y,z] body -> world, position [V(3), P(3)].
+
+[schema]
+name = "starship"
+doc = "Starship vehicle telemetry."
+
+[enum.RequestAction]
+type = "u8"
+values = { NONE = 0, CALIB_GYRO_START = 1, CALIB_GYRO_STOP = 2, CALIB_ACCEL_START = 3, CALIB_ACCEL_STOP = 4, CALIB_MAG_START = 5, CALIB_MAG_STOP = 6, CALIB_APPLY = 7, SAVE_CONFIG = 8, SYSTEM_RESET = 9 }
+
+[enum.ControlSource]
+type = "u8"
+values = { NONE = 0, RADIO = 1, USB = 2, UART = 3 }
+
+# ---------------------------------------------------------------- AIR set
+
+[packet.VEHICLE_STATUS]
+port = 0x20
+qos = "link"
+latest = true
+rate_air = 5
+rate_usb = 20
+doc = "Mode and health, the slow class. Reports what the vehicle applied (safety.md 2.6)."
+fields = [
+  { name = "t_us",            type = "u32", unit = "us", doc = "vehicle time, (NowNs/1000) mod 2^32" },
+  { name = "t_ns",            type = "i64", unit = "ns", doc = "full vehicle time NowNs()" },
+  { name = "mode",            type = "u8", doc = "flight software mode (numbering owned by the flight software docs)" },
+  { name = "mission_mode",    type = "u8" },
+  { name = "mission_phase",   type = "u8" },
+  { name = "ctrl_source",     type = "enum", enum = "ControlSource", doc = "active control source" },
+  { name = "flags",           type = "u8", bits = { ARMED = 0, SIMULATION = 1, MOTORS_ENABLED = 2, GS_PRESENT = 3, INCOMPATIBLE = 4, FAILSAFE = 5 }, doc = "ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open." },
+  { name = "failure_bits",    type = "u32" },
+  { name = "sensor_state",    type = "u16" },
+  { name = "last_req_id",     type = "u16", doc = "last executed REQUEST id, 0 = none" },
+  { name = "last_req_status", type = "u8", doc = "RequestStatus value of last_req_id" },
+  { name = "rc_age",          type = "fixed", wire = "u16", scale = 0.001, unit = "s", doc = "age of the last accepted RC_STATE, invalid (NaN) = none" },
+]
+
+[packet.AIR_POSE]
+port = 0x21
+qos = "telemetry"
+latest = true
+rate_air = 10
+doc = "Minimal pose for the radio: attitude, position and velocity, fixed-point."
+fields = [
+  { name = "t_us", type = "u32", unit = "us" },
+  { name = "q",    type = "fixed", wire = "i16", limit = 1.0, count = 4, doc = "[w,x,y,z] body -> world" },
+  { name = "pos",  type = "fixed", wire = "i16", scale = 0.1, count = 3, unit = "m", doc = "NWU, +-3276.6 m" },
+  { name = "vel",  type = "fixed", wire = "i16", scale = 0.01, count = 3, unit = "m/s", doc = "NWU, +-327.66 m/s" },
+]
+
+# ---------------------------------------------------------------- USB set
+
+[packet.POSE]
+port = 0x80
+qos = "telemetry"
+latest = true
+rate_usb = 100
+doc = "Fast class: attitude [omega, q] and position [V, P], full precision."
+fields = [
+  { name = "t_us",  type = "u32", unit = "us" },
+  { name = "omega", type = "f32", count = 3, unit = "rad/s", doc = "body rates" },
+  { name = "q",     type = "f32", count = 4, doc = "[w,x,y,z] body -> world" },
+  { name = "vel",   type = "f32", count = 3, unit = "m/s", doc = "NWU" },
+  { name = "pos",   type = "f32", count = 3, unit = "m", doc = "NWU from the reset reference" },
+]
+
+[packet.ACTUATORS]
+port = 0x81
+qos = "telemetry"
+latest = true
+rate_usb = 50
+doc = "Actuator outputs."
+fields = [
+  { name = "t_us",            type = "u32", unit = "us" },
+  { name = "flaps",           type = "f32", count = 4, unit = "rad", doc = "[TL, TR, BL, BR]; 0 = extended, increasing = folded toward the back" },
+  { name = "tvc",             type = "f32", count = 2, unit = "rad", doc = "thrust vector deflection [x, y]" },
+  { name = "thrust",          type = "f32", unit = "N" },
+  { name = "ground_distance", type = "f32", unit = "m", doc = "NaN if unavailable" },
+]
+
+[packet.MISSION]
+port = 0x82
+qos = "telemetry"
+latest = true
+rate_usb = 20
+doc = "Mission setpoints and progress."
+fields = [
+  { name = "t_us",        type = "u32", unit = "us" },
+  { name = "setpoint_pos", type = "f32", count = 3, unit = "m" },
+  { name = "setpoint_vel", type = "f32", count = 3, unit = "m/s" },
+  { name = "mission_time", type = "fixed", wire = "i32", scale = 0.001, unit = "s" },
+  { name = "index",        type = "u8" },
+  { name = "phase",        type = "u8" },
+]
+
+[packet.GNSS]
+port = 0x83
+qos = "telemetry"
+latest = true
+rate_usb = 5
+doc = "GNSS solution. Latitude and longitude in radians."
+fields = [
+  { name = "t_us",     type = "u32", unit = "us" },
+  { name = "latitude",  type = "f64", unit = "rad" },
+  { name = "longitude", type = "f64", unit = "rad" },
+  { name = "altitude",  type = "f32", unit = "m" },
+  { name = "vel",       type = "f32", count = 3, unit = "m/s", doc = "NWU" },
+  { name = "satellites", type = "u8" },
+  { name = "fix_type",   type = "u8" },
+  { name = "h_acc",      type = "f32", unit = "m" },
+  { name = "v_acc",      type = "f32", unit = "m" },
+  { name = "s_acc",      type = "f32", unit = "m/s" },
+]
+
+# ---------------------------------------------------------------- debug (USB only)
+
+[packet.IMU_RAW]
+port = 0x90
+qos = "telemetry"
+latest = true
+rate_usb = 100
+doc = "Raw sensor values."
+fields = [
+  { name = "t_us",     type = "u32", unit = "us" },
+  { name = "gyro",     type = "f32", count = 3, unit = "rad/s" },
+  { name = "accel",    type = "f32", count = 3, unit = "m/s^2" },
+  { name = "mag",      type = "f32", count = 3, unit = "T" },
+  { name = "pressure", type = "f32", unit = "Pa" },
+  { name = "temperature", type = "f32", unit = "K" },
+]
+
+[packet.ESTIMATOR]
+port = 0x91
+qos = "telemetry"
+latest = true
+rate_usb = 20
+doc = "Estimator accuracy (standard deviations)."
+fields = [
+  { name = "t_us",    type = "u32", unit = "us" },
+  { name = "att_std", type = "f32", count = 3, unit = "rad" },
+  { name = "vel_std", type = "f32", count = 3, unit = "m/s" },
+  { name = "pos_std", type = "f32", count = 3, unit = "m" },
+]
+
+[packet.TASK_TIMING]
+port = 0x92
+qos = "telemetry"
+latest = true
+rate_usb = 5
+doc = "Execution time of the first 8 scheduler tasks."
+fields = [
+  { name = "t_us",  type = "u32", unit = "us" },
+  { name = "count", type = "u8", doc = "number of valid entries, <= 8" },
+  { name = "avg",   type = "fixed", wire = "u16", scale = 1e-6, count = 8, unit = "s" },
+  { name = "max",   type = "fixed", wire = "u16", scale = 1e-6, count = 8, unit = "s" },
+]

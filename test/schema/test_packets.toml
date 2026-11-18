@@ -1,0 +1,47 @@
+# Test-only schema: exercises every field kind and the append-only (optional) rule. Not part of the product.
+[schema]
+name = "test_packets"
+
+[enum.Colour]
+type = "u8"
+values = { RED = 0, GREEN = 1, BLUE = 2 }
+
+[packet.KITCHEN_SINK]
+port = 0xF0
+qos = "telemetry"
+latest = true
+doc = "All kinds."
+fields = [
+  { name = "u8v",   type = "u8" },
+  { name = "i8v",   type = "i8" },
+  { name = "u16v",  type = "u16" },
+  { name = "i16v",  type = "i16" },
+  { name = "u32v",  type = "u32" },
+  { name = "i32v",  type = "i32" },
+  { name = "u64v",  type = "u64" },
+  { name = "i64v",  type = "i64" },
+  { name = "f32v",  type = "f32" },
+  { name = "f64v",  type = "f64" },
+  { name = "flag",  type = "bool" },
+  { name = "flags", type = "bool", count = 3 },
+  { name = "colour", type = "enum", enum = "Colour" },
+  { name = "colours", type = "enum", enum = "Colour", count = 2 },
+  { name = "name",  type = "char", count = 4 },
+  { name = "fx",    type = "fixed", wire = "i16", limit = 32767.0, unit = "m", doc = "scale 1.0 so ties are exact" },
+  { name = "fu",    type = "fixed", wire = "u8", scale = 1.0 },
+  { name = "fz",    type = "fixed", wire = "u16", scale = 1.0, invalid = 0 },
+  { name = "fi32",  type = "fixed", wire = "i32", scale = 0.5 },
+  { name = "tail",   type = "bytes_tail", max = 16 },
+]
+
+[packet.OPTIONAL_TEST]
+port = 0xF1
+qos = "event"
+latest = false
+doc = "Append-only evolution: older senders omit the optional tail fields."
+fields = [
+  { name = "a",      type = "u16" },
+  { name = "opt_f",  type = "fixed", wire = "i16", scale = 0.5, optional = true },
+  { name = "opt_u",  type = "u8", optional = true, default = 7 },
+  { name = "opt_x",  type = "f32", optional = true },
+]

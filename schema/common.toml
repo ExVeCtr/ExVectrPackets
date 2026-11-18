@@ -1,0 +1,127 @@
+# Common packets (network-design.md section 4.7, 4.5). Shared by every project that speaks ExVectrNetwork.
+# Format: docs/schema-format.md. Wire layouts are append-only (docs/versioning.md).
+
+[schema]
+name = "common"
+doc = "Link/system and control packets, ports 0x01-0x1F, plus the heartbeat payload."
+
+[enum.HeartbeatRole]
+type = "u8"
+values = { GROUND_STATION = 0, VEHICLE = 1, LINK_TX = 2, LINK_RX = 3 }
+
+[enum.Severity]
+type = "u8"
+values = { DEBUG = 0, INFO = 1, WARNING = 2, ERROR = 3 }
+
+[enum.RequestStatus]
+type = "u8"
+values = { DONE = 0, IN_PROGRESS = 1, REJECTED_STATE = 2, REJECTED_INVALID = 3, FAILED = 4 }
+
+[enum.AirState]
+type = "u8"
+values = { OFF = 0, SEARCHING = 1, SYNCING = 2, SYNCED = 3 }
+
+# Heartbeat payload (frame TYPE = HEARTBEAT, no port). Produced by the ExVectrNetwork Node itself;
+# this definition is for decoders (ground station) and tests. Section 4.5.
+[packet.HEARTBEAT]
+heartbeat = true
+qos = "link"
+latest = true
+doc = "Presence and version report, 1 Hz. Never triggers a failsafe."
+fields = [
+  { name = "role",           type = "enum", enum = "HeartbeatRole" },
+  { name = "net_version",    type = "u8", doc = "Network version, 1" },
+  { name = "schema_hash",    type = "u32", doc = "FNV-1a-32 schema hash of the sender's generated packets" },
+  { name = "uptime",         type = "fixed", wire = "u32", scale = 0.001, as = "f64", unit = "s" },
+  { name = "flags",          type = "u8", doc = "reserved, 0" },
+]
+
+[packet.LINK_STATS]
+port = 0x01
+qos = "link"
+latest = true
+rate_air = 2
+doc = "Link statistics from the link modules (nodes 2 and 3), to DST 0xFF."
+fields = [
+  { name = "uptime",         type = "fixed", wire = "u32", scale = 0.001, as = "f64", unit = "s" },
+  { name = "air_state",      type = "enum", enum = "AirState" },
+  { name = "rx_lq",          type = "u8", unit = "%", doc = "valid air packets received in the last 1 s, percent of expected" },
+  { name = "rssi",           type = "i8", unit = "dBm", doc = "RSSI of the last valid packet" },
+  { name = "snr",            type = "i8", unit = "dB", doc = "SNR of the last valid packet" },
+  { name = "tx_power",       type = "i8", unit = "dBm" },
+  { name = "antenna",        type = "u8", doc = "bits 3-0 RX winner, bits 7-4 TX antenna" },
+  { name = "air_rx_ok",      type = "u16", doc = "air packets received valid (cumulative, wraps)" },
+  { name = "air_rx_bad",     type = "u16", doc = "air packets rejected (CRC/header, cumulative)" },
+  { name = "frames_dropped", type = "u16", doc = "frames dropped, queue full (cumulative)" },
+  { name = "frames_expired", type = "u16", doc = "frames expired (cumulative)" },
+  { name = "queue_peak",     type = "u8", unit = "%", doc = "peak queue fill in the last 1 s" },
+]
+
+[packet.LOG_TEXT]
+port = 0x02
+qos = "event"
+latest = false
+doc = "Log line from any node. Replaces the debug monitor."
+fields = [
+  { name = "severity", type = "enum", enum = "Severity" },
+  { name = "text",     type = "bytes_tail", max = 233, text = true, doc = "UTF-8, no terminator" },
+]
+
+[packet.HANDSET_TELEM]
+port = 0x03
+qos = "link"
+latest = true
+rate_air = 2
+rate_usb = 2
+doc = "Display-ready values for the handset (translated to CRSF by the TX module). Wire scaling as section 4.7.5, decoded values are SI."
+fields = [
+  { name = "flags",        type = "u8", bits = { ARMED = 0, FAILURE = 1, SIMULATION = 2, GNSS_FIX = 3 } },
+  { name = "mode_text",    type = "char", count = 8, doc = "ASCII, NUL-padded, not necessarily terminated" },
+  { name = "latitude",     type = "fixed", wire = "i32", as = "f64", scale = 1.7453292519943295e-9, unit = "rad", doc = "wire: deg * 1e7" },
+  { name = "longitude",    type = "fixed", wire = "i32", as = "f64", scale = 1.7453292519943295e-9, unit = "rad", doc = "wire: deg * 1e7" },
+  { name = "ground_speed", type = "fixed", wire = "u16", scale = 0.01, unit = "m/s", doc = "wire: cm/s" },
+  { name = "heading",      type = "fixed", wire = "u16", scale = 1.7453292519943295e-4, unit = "rad", doc = "wire: centi-degrees" },
+  { name = "altitude",     type = "fixed", wire = "i16", scale = 1.0, unit = "m", doc = "above the reference" },
+  { name = "satellites",   type = "u8" },
+  { name = "vertical_speed", type = "fixed", wire = "i16", scale = 0.01, unit = "m/s", doc = "wire: cm/s" },
+  { name = "pitch",        type = "fixed", wire = "i16", scale = 1e-4, unit = "rad" },
+  { name = "roll",         type = "fixed", wire = "i16", scale = 1e-4, unit = "rad" },
+  { name = "yaw",          type = "fixed", wire = "i16", scale = 1e-4, unit = "rad" },
+  { name = "battery",      type = "fixed", wire = "u16", scale = 0.001, unit = "V", invalid = 0, doc = "wire: mV, 0 = unknown" },
+]
+
+[packet.RC_STATE]
+port = 0x10
+qos = "control"
+latest = true
+doc = "Complete command state of a control source, sent continuously (25-50 Hz). Carries the hard motor enable (safety.md section 3)."
+consts = { CH_MIN = -1000, CH_MAX = 1000, CH_INVALID = -32768 }
+fields = [
+  { name = "flags",    type = "u8", bits = { SOURCE_OK = 0, MOTOR_ENABLE = 1 }, doc = "SOURCE_OK: input fresh. MOTOR_ENABLE: operator says motors may run (hard interlock, acted on only after an observed disable-to-enable transition and valid for 1 s)." },
+  { name = "reserved", type = "u8" },
+  { name = "ch",       type = "i16", count = 16, doc = "-1000..1000, 0 = centre, CH_INVALID = channel not provided" },
+]
+
+[packet.REQUEST]
+port = 0x11
+qos = "event"
+latest = false
+doc = "One-shot non-safety action with an idempotent id. The action enum is in starship.toml (RequestAction)."
+fields = [
+  { name = "req_id",  type = "u16", doc = "non-zero, new per action, reused on retry" },
+  { name = "action",  type = "u8" },
+  { name = "target",  type = "u8" },
+  { name = "arg_i",   type = "i32" },
+  { name = "arg_f",   type = "f32" },
+]
+
+[packet.REQUEST_ACK]
+port = 0x12
+qos = "event"
+latest = false
+doc = "Result of a REQUEST."
+fields = [
+  { name = "req_id", type = "u16" },
+  { name = "status", type = "enum", enum = "RequestStatus" },
+  { name = "detail", type = "u8", doc = "action specific, 0 if unused" },
+]
