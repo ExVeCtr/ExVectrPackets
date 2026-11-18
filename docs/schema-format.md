@@ -105,7 +105,7 @@ Each packet is a `@dataclasses.dataclass` with the schema field names, class att
 
 ```python
 import exvectr_packets as p
-raw = p.RcState(flags=p.RcState.FLAGS_SOURCE_OK | p.RcState.FLAGS_MOTOR_ENABLE, ch=[0] * 16).encode()
+raw = p.RcState(flags=p.RcState.FLAGS_SOURCE_OK, ch=[0] * 16).encode()
 pkt = p.PACKETS_BY_PORT[0x10].decode(raw)
 ```
 

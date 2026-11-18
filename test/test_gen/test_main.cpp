@@ -345,7 +345,6 @@ static void test_metadata_constants() {
     TEST_ASSERT_TRUE(RcState::kLatest);
     TEST_ASSERT_EQUAL(34, RcState::kMaxSize);
     TEST_ASSERT_EQUAL(1, RcState::kFlagsSourceOk);
-    TEST_ASSERT_EQUAL(2, RcState::kFlagsMotorEnable);
     TEST_ASSERT_EQUAL_INT32(-32768, RcState::kChInvalid);
     TEST_ASSERT_TRUE(AirPose::kAirEligible);
     TEST_ASSERT_FALSE(Pose::kAirEligible);

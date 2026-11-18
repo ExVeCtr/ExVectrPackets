@@ -51,7 +51,7 @@
    "name": "rc_state",
    "packet": "RC_STATE",
    "values": {
-    "flags": 3,
+    "flags": 1,
     "reserved": 0,
     "ch": [
      -1000,
@@ -72,7 +72,7 @@
      800
     ]
    },
-   "hex": "030018fc0cfe0000f401e80300800100ffff6400c8002c019001f4015802bc022003"
+   "hex": "010018fc0cfe0000f401e80300800100ffff6400c8002c019001f4015802bc022003"
   },
   {
    "name": "rc_state_not_ok",

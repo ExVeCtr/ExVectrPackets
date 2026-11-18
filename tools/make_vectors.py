@@ -39,7 +39,7 @@ case("request_ack_rejected", "REQUEST_ACK", {"req_id": 7, "status": 2, "detail":
 case("request", "REQUEST", {"req_id": 0x0102, "action": 7, "target": 2, "arg_i": -5, "arg_f": 1.5},
      P("HBBif", 0x0102, 7, 2, -5, 1.5))
 ch = [-1000, -500, 0, 500, 1000, -32768, 1, -1, 100, 200, 300, 400, 500, 600, 700, 800]
-case("rc_state", "RC_STATE", {"flags": 3, "reserved": 0, "ch": ch}, P("BB16h", 3, 0, *ch))
+case("rc_state", "RC_STATE", {"flags": 1, "reserved": 0, "ch": ch}, P("BB16h", 1, 0, *ch))
 case("rc_state_not_ok", "RC_STATE", {"flags": 0, "reserved": 0, "ch": [0] * 16}, P("BB16h", 0, 0, *([0] * 16)))
 case("link_stats", "LINK_STATS",
      {"uptime": 123.456, "air_state": 3, "rx_lq": 97, "rssi": -80, "snr": -7, "tx_power": 14, "antenna": 0x21,

@@ -97,7 +97,7 @@ latest = true
 doc = "Complete command state of a control source, sent continuously (25-50 Hz). Carries the hard motor enable (safety.md section 3)."
 consts = { CH_MIN = -1000, CH_MAX = 1000, CH_INVALID = -32768 }
 fields = [
-  { name = "flags",    type = "u8", bits = { SOURCE_OK = 0, MOTOR_ENABLE = 1 }, doc = "SOURCE_OK: input fresh. MOTOR_ENABLE: operator says motors may run (hard interlock, acted on only after an observed disable-to-enable transition and valid for 1 s)." },
+  { name = "flags",    type = "u8", bits = { SOURCE_OK = 0 }, doc = "SOURCE_OK: the handset data is valid and fresh. Bits 1..7 are reserved (send 0, ignore on receive). RC_STATE is deliberately generic: only sticks, switches and source validity, no vehicle-specific meaning." },
   { name = "reserved", type = "u8" },
   { name = "ch",       type = "i16", count = 16, doc = "-1000..1000, 0 = centre, CH_INVALID = channel not provided" },
 ]

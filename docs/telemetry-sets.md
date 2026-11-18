@@ -33,4 +33,4 @@ All of the above that have a USB rate, plus ports 0x80 and up (never forwarded t
 
 ## Control and request packets
 
-`RC_STATE` (0x10, 34 B) carries the 16 channels and the flags `SOURCE_OK` (bit 0) and `MOTOR_ENABLE` (bit 1, the hard motor interlock from `docs/safety.md` section 3, sent continuously with the rest of the command state). `REQUEST` (0x11) / `REQUEST_ACK` (0x12) use the action enum `RequestAction` and the status enum `RequestStatus`.
+`RC_STATE` (0x10, 34 B) carries the 16 channels and the flag `SOURCE_OK` (bit 0: the handset data is valid; bits 1..7 reserved, zero). `RC_STATE` is deliberately generic: it carries only the controller's sticks and switches, so the ExVectrLink module stays independent of the Starship; the vehicle maps a switch position to the motor enable itself (workspace `docs/safety.md` section 3). `REQUEST` (0x11) / `REQUEST_ACK` (0x12) use the action enum `RequestAction` and the status enum `RequestStatus`.
