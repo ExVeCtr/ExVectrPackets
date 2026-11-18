@@ -1,0 +1,11 @@
+# Versioning rules
+
+There is no version byte in packets. Compatibility is kept by these rules (design 3.5.2):
+
+1. **Layouts grow only at the end.** A new field is appended with `optional = true`. New decoders accept shorter payloads from old senders (missing fields become the default or NaN). Old decoders accept longer payloads and ignore the extra bytes. The sender always writes the full new layout.
+2. **A breaking change gets a new port.** Reordering, retyping, rescaling, changing a `fixed` scale or sentinel, shrinking or removing a field, changing a `char` length: define a new packet on a new port and retire the old one (leave its definition in place, marked in `doc`, until no deployed software sends it). Never reuse a retired port for a different layout.
+3. **Enums grow by new members only.** Never renumber. Decoders keep unknown values (C++: cast value, Python: plain `int`).
+4. **Bit fields:** new bits take unused positions, existing bit meanings never change.
+5. **Network frame version** (2-bit VER) and the stream/air framing versions are separate and live in ExVectrNetwork.
+6. **Schema hash:** FNV-1a-32 over a canonical JSON serialisation of all schema files (files sorted by name, keys sorted, field order kept; `doc` and `unit` text and TOML comments excluded). Any change to ports, fields, types, scales, enums, rates or QoS changes it; documentation edits do not. It is `kSchemaHash` (C++, `all.hpp`) and `SCHEMA_HASH` (Python) and is carried in every heartbeat. The ground station stores it with each recording so logs are decoded with the matching generated module. A different hash means "layouts may differ": it is reported (INCOMPATIBLE) and never used as a failsafe trigger.
+7. **Optional-field growth is still a hash change.** Two builds with different hashes can still interoperate when the difference is append-only, but this is not checked automatically; the hash only tells people to look.
