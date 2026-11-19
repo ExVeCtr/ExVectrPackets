@@ -371,7 +371,7 @@ struct RcState {
     }
 };
 
-/// One-shot non-safety action with an idempotent id. The action enum is in starship.toml (RequestAction).
+/// One-shot non-safety action with an idempotent id. The action enum is in starship.toml (RequestAction). Exception: action LINK_UPLOAD_MODE (target = link module node id, 2 = TX, 3 = RX) makes that module stop the air link and enter its over-the-air firmware upload (WiFi) mode. It is always honoured with no safety condition (the module cannot know if the vehicle is flying), so senders must never send it unintentionally; arg_i and arg_f are 0, REQUEST_ACK detail is 0.
 struct Request {
     static constexpr uint8_t kPort = 0x11;
     static constexpr bool kIsHeartbeat = false;

@@ -13,3 +13,7 @@ There is no version byte in packets. Compatibility is kept by these rules (desig
 ## RC_STATE is deliberately generic
 
 `RC_STATE` carries only data about the controller's sticks and switches (16 channels and `SOURCE_OK`). It has no vehicle-specific field, so the ExVectrLink handset module stays independent of the Starship. The vehicle interprets switch positions with its own fixed mapping (for example the motor enable). Do not add Starship-specific flags to it; vehicle state belongs in `VEHICLE_STATUS`. Bit 1 of `flags` was briefly `MOTOR_ENABLE` during development and is now reserved (zero); the size and layout of `RC_STATE` did not change.
+
+## Changelog
+
+- **2026-11-19, `RequestAction.LINK_UPLOAD_MODE = 10`** (schema hash `0x6F080F8F` -> `0x3AFA3CCE`). Appended enum value, so backward compatible (old decoders keep it as a plain integer). Semantics: a REQUEST with `target` = link module node id (2 = TX module, 3 = RX module) makes that module stop the air link and enter its over-the-air firmware upload (WiFi) mode. Link modules always honour it, with no safety condition (user decision 2026-11-19; the module cannot know whether the vehicle is armed or flying), so senders must never send it unintentionally. This is the one exception to the rule that REQUESTs are only accepted while disarmed and on the ground. Otherwise a normal idempotent REQUEST: non-zero `req_id`, answered with REQUEST_ACK (`detail` = 0), `arg_i`/`arg_f` = 0. New vector: `request_link_upload_mode`.

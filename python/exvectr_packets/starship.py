@@ -17,6 +17,7 @@ class RequestAction(enum.IntEnum):
     CALIB_APPLY = 7
     SAVE_CONFIG = 8
     SYSTEM_RESET = 9
+    LINK_UPLOAD_MODE = 10
 
 
 class ControlSource(enum.IntEnum):

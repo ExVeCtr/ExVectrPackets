@@ -18,6 +18,7 @@ enum class RequestAction : uint8_t {
     kCalibApply = 7,
     kSaveConfig = 8,
     kSystemReset = 9,
+    kLinkUploadMode = 10,
 };
 
 enum class ControlSource : uint8_t {

@@ -48,6 +48,18 @@
    "hex": "02010702fbffffff0000c03f"
   },
   {
+   "name": "request_link_upload_mode",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 5,
+    "action": 10,
+    "target": 3,
+    "arg_i": 0,
+    "arg_f": 0.0
+   },
+   "hex": "05000a030000000000000000"
+  },
+  {
    "name": "rc_state",
    "packet": "RC_STATE",
    "values": {
