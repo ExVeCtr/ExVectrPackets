@@ -51,13 +51,14 @@ class VehicleStatus:
     FLAGS_GS_PRESENT: ClassVar[int] = 8
     FLAGS_INCOMPATIBLE: ClassVar[int] = 16
     FLAGS_FAILSAFE: ClassVar[int] = 32
+    FLAGS_UART_PEER_SEEN: ClassVar[int] = 64
     t_us: int = 0  # [us] vehicle time, (NowNs/1000) mod 2^32
     t_ns: int = 0  # [ns] full vehicle time NowNs()
     mode: int = 0  # flight software mode (numbering owned by the flight software docs)
     mission_mode: int = 0
     mission_phase: int = 0
     ctrl_source: ControlSource = 0  # active control source
-    flags: int = 0  # ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open.
+    flags: int = 0  # ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open. UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it).
     failure_bits: int = 0
     sensor_state: int = 0
     last_req_id: int = 0  # last executed REQUEST id, 0 = none
@@ -113,16 +114,16 @@ class AirPose:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 10
     USB_RATE_HZ: ClassVar[int] = 0
-    MAX_SIZE: ClassVar[int] = 24
-    MIN_SIZE: ClassVar[int] = 24
+    MAX_SIZE: ClassVar[int] = 30
+    MIN_SIZE: ClassVar[int] = 30
     t_us: int = 0  # [us] 
     q: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # [w,x,y,z] body -> world
-    pos: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m] NWU, +-3276.6 m
+    pos: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m] NWU, 1 mm resolution, +-2147483.6 m
     vel: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m/s] NWU, +-327.66 m/s
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(24)
+        b = bytearray(30)
         _rt.put(b, '<I', 0, self.t_us)
         if len(self.q) != 4:
             raise ValueError('q needs 4 elements')
@@ -131,11 +132,11 @@ class AirPose:
         if len(self.pos) != 3:
             raise ValueError('pos needs 3 elements')
         for i, v in enumerate(self.pos):
-            _rt.put_fixed(b, '<h', 12 + i * 2, v, 0.1, -32767, 32767, -32768)
+            _rt.put_fixed(b, '<i', 12 + i * 4, v, 0.001, -2147483647, 2147483647, -2147483648)
         if len(self.vel) != 3:
             raise ValueError('vel needs 3 elements')
         for i, v in enumerate(self.vel):
-            _rt.put_fixed(b, '<h', 18 + i * 2, v, 0.01, -32767, 32767, -32768)
+            _rt.put_fixed(b, '<h', 24 + i * 2, v, 0.01, -32767, 32767, -32768)
         return bytes(b)
 
     @classmethod
@@ -143,12 +144,12 @@ class AirPose:
         """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
         data = bytes(data)
         if len(data) < cls.MIN_SIZE:
-            raise ValueError('AIR_POSE: payload too short (%d < 24)' % len(data))
+            raise ValueError('AIR_POSE: payload too short (%d < 30)' % len(data))
         t = cls()
         t.t_us = _rt.get(data, '<I', 0)
         t.q = [_rt.get_fixed(data, '<h', 4 + i * 2, 3.051850947599719e-05, -32768) for i in range(4)]
-        t.pos = [_rt.get_fixed(data, '<h', 12 + i * 2, 0.1, -32768) for i in range(3)]
-        t.vel = [_rt.get_fixed(data, '<h', 18 + i * 2, 0.01, -32768) for i in range(3)]
+        t.pos = [_rt.get_fixed(data, '<i', 12 + i * 4, 0.001, -2147483648) for i in range(3)]
+        t.vel = [_rt.get_fixed(data, '<h', 24 + i * 2, 0.01, -32768) for i in range(3)]
         return t
 
 

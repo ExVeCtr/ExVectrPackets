@@ -51,6 +51,7 @@ struct VehicleStatus {
     static constexpr uint8_t kFlagsGsPresent = uint8_t(1u << 3);
     static constexpr uint8_t kFlagsIncompatible = uint8_t(1u << 4);
     static constexpr uint8_t kFlagsFailsafe = uint8_t(1u << 5);
+    static constexpr uint8_t kFlagsUartPeerSeen = uint8_t(1u << 6);
 
     uint32_t t_us = {}; // [us] vehicle time, (NowNs/1000) mod 2^32
     int64_t t_ns = {}; // [ns] full vehicle time NowNs()
@@ -58,7 +59,7 @@ struct VehicleStatus {
     uint8_t mission_mode = {};
     uint8_t mission_phase = {};
     ControlSource ctrl_source = {}; // active control source
-    uint8_t flags = {}; // ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open.
+    uint8_t flags = {}; // ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open. UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it).
     uint32_t failure_bits = {};
     uint16_t sensor_state = {};
     uint16_t last_req_id = {}; // last executed REQUEST id, 0 = none
@@ -133,22 +134,22 @@ struct AirPose {
     static constexpr bool kAirEligible = true;
     static constexpr uint16_t kAirRateHz = 10;
     static constexpr uint16_t kUsbRateHz = 0;
-    static constexpr size_t kMaxSize = 24;
-    static constexpr size_t kMinSize = 24;
+    static constexpr size_t kMaxSize = 30;
+    static constexpr size_t kMinSize = 30;
 
     uint32_t t_us = {}; // [us] 
     float q[4] = {}; // [w,x,y,z] body -> world
-    float pos[3] = {}; // [m] NWU, +-3276.6 m
+    float pos[3] = {}; // [m] NWU, 1 mm resolution, +-2147483.6 m
     float vel[3] = {}; // [m/s] NWU, +-327.66 m/s
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 24;
+        constexpr size_t total = 30;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         for (size_t i = 0; i < 4; ++i) codec::put_i16(out + 4 + i * 2, static_cast<int16_t>(codec::fixedEncode(q[i], 3.051850947599719e-05, -32767LL, 32767LL, -32768LL)));
-        for (size_t i = 0; i < 3; ++i) codec::put_i16(out + 12 + i * 2, static_cast<int16_t>(codec::fixedEncode(pos[i], 0.1, -32767LL, 32767LL, -32768LL)));
-        for (size_t i = 0; i < 3; ++i) codec::put_i16(out + 18 + i * 2, static_cast<int16_t>(codec::fixedEncode(vel[i], 0.01, -32767LL, 32767LL, -32768LL)));
+        for (size_t i = 0; i < 3; ++i) codec::put_i32(out + 12 + i * 4, static_cast<int32_t>(codec::fixedEncode(pos[i], 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
+        for (size_t i = 0; i < 3; ++i) codec::put_i16(out + 24 + i * 2, static_cast<int16_t>(codec::fixedEncode(vel[i], 0.01, -32767LL, 32767LL, -32768LL)));
         return total;
     }
 
@@ -159,8 +160,8 @@ struct AirPose {
         AirPose t;
         t.t_us = codec::get_u32(in + 0);
         for (size_t i = 0; i < 4; ++i) t.q[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 4 + i * 2), 3.051850947599719e-05, -32768LL));
-        for (size_t i = 0; i < 3; ++i) t.pos[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 12 + i * 2), 0.1, -32768LL));
-        for (size_t i = 0; i < 3; ++i) t.vel[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 18 + i * 2), 0.01, -32768LL));
+        for (size_t i = 0; i < 3; ++i) t.pos[i] = static_cast<float>(codec::fixedDecode(codec::get_i32(in + 12 + i * 4), 0.001, -2147483648LL));
+        for (size_t i = 0; i < 3; ++i) t.vel[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 24 + i * 2), 0.01, -32768LL));
         *this = t;
         return true;
     }

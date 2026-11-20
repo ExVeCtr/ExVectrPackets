@@ -49,7 +49,7 @@ fields = [
   { name = "mission_mode",    type = "u8" },
   { name = "mission_phase",   type = "u8" },
   { name = "ctrl_source",     type = "enum", enum = "ControlSource", doc = "active control source" },
-  { name = "flags",           type = "u8", bits = { ARMED = 0, SIMULATION = 1, MOTORS_ENABLED = 2, GS_PRESENT = 3, INCOMPATIBLE = 4, FAILSAFE = 5 }, doc = "ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open." },
+  { name = "flags",           type = "u8", bits = { ARMED = 0, SIMULATION = 1, MOTORS_ENABLED = 2, GS_PRESENT = 3, INCOMPATIBLE = 4, FAILSAFE = 5, UART_PEER_SEEN = 6 }, doc = "ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open. UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it)." },
   { name = "failure_bits",    type = "u32" },
   { name = "sensor_state",    type = "u16" },
   { name = "last_req_id",     type = "u16", doc = "last executed REQUEST id, 0 = none" },
@@ -66,7 +66,7 @@ doc = "Minimal pose for the radio: attitude, position and velocity, fixed-point.
 fields = [
   { name = "t_us", type = "u32", unit = "us" },
   { name = "q",    type = "fixed", wire = "i16", limit = 1.0, count = 4, doc = "[w,x,y,z] body -> world" },
-  { name = "pos",  type = "fixed", wire = "i16", scale = 0.1, count = 3, unit = "m", doc = "NWU, +-3276.6 m" },
+  { name = "pos",  type = "fixed", wire = "i32", scale = 0.001, count = 3, unit = "m", doc = "NWU, 1 mm resolution, +-2147483.6 m" },
   { name = "vel",  type = "fixed", wire = "i16", scale = 0.01, count = 3, unit = "m/s", doc = "NWU, +-327.66 m/s" },
 ]
 

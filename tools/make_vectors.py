@@ -84,11 +84,11 @@ case("vehicle_status", "VEHICLE_STATUS", vs,
 case("vehicle_status_no_rc", "VEHICLE_STATUS", {**vs, "rc_age": NAN},
      P("IqBBBBBIHHBH", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 65535))
 q = [32767, -32767, 0, 16384]
-pos = [100, -100, 32767]
+pos = [100, -100, 1234567]  # mm, beyond the old i16 range
 vel = [-327, 0, 1]
 S_Q = 1.0 / 32767
-ap = {"t_us": 1000, "q": [r * S_Q for r in q], "pos": [r * 0.1 for r in pos], "vel": [r * 0.01 for r in vel]}
-case("air_pose", "AIR_POSE", ap, P("I4h3h3h", 1000, *q, *pos, *vel))
+ap = {"t_us": 1000, "q": [r * S_Q for r in q], "pos": [r * 0.001 for r in pos], "vel": [r * 0.01 for r in vel]}
+case("air_pose", "AIR_POSE", ap, P("I4h3i3h", 1000, *q, *pos, *vel))
 pv = {"t_us": 5, "omega": [0.5, -0.25, 1.0], "q": [1.0, 0.0, 0.0, -0.5], "vel": [1.5, 2.5, -3.5], "pos": [10.0, -20.0, 30.5]}
 case("pose", "POSE", pv, P("I3f4f3f3f", 5, *pv["omega"], *pv["q"], *pv["vel"], *pv["pos"]))
 av = {"t_us": 6, "flaps": [0.0, 0.25, 1.5, 0.75], "tvc": [0.125, -0.125], "thrust": 12.5, "ground_distance": NAN}

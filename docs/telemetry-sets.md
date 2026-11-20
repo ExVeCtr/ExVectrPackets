@@ -7,11 +7,11 @@ Design 3.5.6 as adapted by the user decisions in the Revision 1 box of `docs/net
 | Packet | Port | Bytes | Air Hz | B/s incl. 7 B overhead |
 |---|---|---|---|---|
 | `VEHICLE_STATUS` (slow class: mode, mission, applied arm state, motor gate, control source, failure bits, sensors, last request, rc age) | 0x20 | 28 | 5 | 175 |
-| `AIR_POSE` (q, position, velocity as fixed-point) | 0x21 | 24 | 10 | 310 |
+| `AIR_POSE` (q i16, position i32 at 1 mm, velocity i16 at 0.01 m/s) | 0x21 | 30 | 10 | 370 |
 | `HANDSET_TELEM` | 0x03 | 34 | 2 | 82 |
 | `LINK_STATS` (from node 3) | 0x01 | 19 | 2 | 52 |
 | heartbeats (nodes 1 and 3) | - | 11 | 1 | 36 |
-| **Total** | | | | **about 655 B/s** (design budget for the downlink: 6.2 kB/s) |
+| **Total** | | | | **about 715 B/s** (design budget for the downlink: 6.2 kB/s) |
 
 `GNSS`, `ACTUATORS` (flaps), `MISSION` and the raw/debug packets are not on the radio. `HANDSET_TELEM` already carries position, speed and attitude for the Pocket display. A test checks that the air set stays below 1.2 kB/s.
 

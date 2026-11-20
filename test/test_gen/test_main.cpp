@@ -339,6 +339,22 @@ static void test_fixed_rules_direct() {
     TEST_ASSERT_FLOAT_WITHIN(2e-5f, 0.5f, back.q[3]);
 }
 
+static void test_air_pose_position_mm() {
+    // pos is i32 with 1 mm resolution (was i16, 0.1 m); 30 byte payload
+    TEST_ASSERT_EQUAL(30, AirPose::kMaxSize);
+    AirPose ap;
+    ap.pos[0] = 12.345;
+    ap.pos[1] = -4000.0; // beyond the old i16 0.1 m range (+-3276.6 m)
+    ap.pos[2] = 1.2344;  // rounds to 1.234
+    uint8_t buf[AirPose::kMaxSize];
+    TEST_ASSERT_EQUAL(AirPose::kMaxSize, ap.encode(buf, sizeof buf));
+    AirPose back;
+    TEST_ASSERT_TRUE(back.decode(buf, sizeof buf));
+    TEST_ASSERT_FLOAT_WITHIN(1e-6f, 12.345f, back.pos[0]);
+    TEST_ASSERT_FLOAT_WITHIN(1e-3f, -4000.0f, back.pos[1]);
+    TEST_ASSERT_FLOAT_WITHIN(1e-6f, 1.234f, back.pos[2]);
+}
+
 static void test_metadata_constants() {
     TEST_ASSERT_EQUAL_UINT8(0x10, RcState::kPort);
     TEST_ASSERT_EQUAL_UINT8(0, RcState::kQos);
@@ -347,6 +363,7 @@ static void test_metadata_constants() {
     TEST_ASSERT_EQUAL(1, RcState::kFlagsSourceOk);
     TEST_ASSERT_EQUAL_INT32(-32768, RcState::kChInvalid);
     TEST_ASSERT_TRUE(AirPose::kAirEligible);
+    TEST_ASSERT_EQUAL(0x40, VehicleStatus::kFlagsUartPeerSeen);
     TEST_ASSERT_FALSE(Pose::kAirEligible);
     TEST_ASSERT_EQUAL_UINT16(0, Pose::kAirRateHz);
     TEST_ASSERT_EQUAL_UINT16(100, Pose::kUsbRateHz);
@@ -414,6 +431,7 @@ static void test_generated_files_up_to_date() {
 
 int main(int, char**) {
     UNITY_BEGIN();
+    RUN_TEST(test_air_pose_position_mm);
     RUN_TEST(test_vectors_encode);
     RUN_TEST(test_vectors_decode);
     RUN_TEST(test_vectors_decode_failures);
