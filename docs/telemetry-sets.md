@@ -8,12 +8,16 @@ Design 3.5.6 as adapted by the user decisions in the Revision 1 box of `docs/net
 |---|---|---|---|---|
 | `VEHICLE_STATUS` (slow class: mode, mission, applied arm state, motor gate, control source, failure bits, sensors, last request, rc age) | 0x20 | 28 | 5 | 175 |
 | `AIR_POSE` (q i16, position i32 at 1 mm, velocity i16 at 0.01 m/s) | 0x21 | 30 | 10 | 370 |
+| `AIR_ACTUATORS` (two actuator samples per packet, 20 ms apart: TVC deflection, roll torque, thrust, flaps; i16/u16 fixed) | 0x22 | 38 | 25 | 1125 |
+| `AIR_MISSION` (mission time, mode, phase, index, waypoint, position/velocity setpoint, fixed) | 0x23 | 30 | 5 | 185 |
 | `HANDSET_TELEM` | 0x03 | 34 | 2 | 82 |
 | `LINK_STATS` (from node 3) | 0x01 | 19 | 2 | 52 |
 | heartbeats (nodes 1 and 3) | - | 11 | 1 | 36 |
-| **Total** | | | | **about 715 B/s** (design budget for the downlink: 6.2 kB/s) |
+| **Total** | | | | **about 2.0 kB/s** (air downlink entry capacity: 6.15 kB/s; workspace `tools/network_budget.py` counts LINK_STATS at 5 Hz: 2.10 kB/s, 34 %) |
 
-`GNSS`, `ACTUATORS` (flaps), `MISSION` and the raw/debug packets are not on the radio. `HANDSET_TELEM` already carries position, speed and attitude for the Pocket display. A test checks that the air set stays below 1.2 kB/s.
+`GNSS`, `ACTUATORS`, `MISSION` and the raw/debug packets are not on the radio; `AIR_ACTUATORS` and `AIR_MISSION` are their air versions. `HANDSET_TELEM` already carries position, speed and attitude for the Pocket display. A test checks that the air set stays below 2150 B/s (35 % of the air downlink; it was 1.2 kB/s before `AIR_ACTUATORS` and `AIR_MISSION`).
+
+`AIR_ACTUATORS` sampling: the vehicle takes one actuator sample every 20 ms (50 Hz) into a ring and sends the newest two at 25 Hz, on a sampling tick. 25 Hz is the most the air link can carry for one packet type (25 downlink air packets/s, each aggregator entry type at most once per air packet). The ground station turns each packet into two timestamped samples: `t_us` and `t_us - prev_age`. Array order is newest first: `tvc = [x, y, x_prev, y_prev]`, `roll_torque = [new, prev]`, `thrust = [new, prev]`, `flaps = [TL, TR, BL, BR, TL_prev, TR_prev, BL_prev, BR_prev]`. With no previous sample, `prev_age` and the previous values are NaN.
 
 ## USB set (full)
 

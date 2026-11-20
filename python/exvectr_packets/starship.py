@@ -52,13 +52,14 @@ class VehicleStatus:
     FLAGS_INCOMPATIBLE: ClassVar[int] = 16
     FLAGS_FAILSAFE: ClassVar[int] = 32
     FLAGS_UART_PEER_SEEN: ClassVar[int] = 64
+    FLAGS_ZEROING: ClassVar[int] = 128
     t_us: int = 0  # [us] vehicle time, (NowNs/1000) mod 2^32
     t_ns: int = 0  # [ns] full vehicle time NowNs()
     mode: int = 0  # flight software mode (numbering owned by the flight software docs)
     mission_mode: int = 0
     mission_phase: int = 0
     ctrl_source: ControlSource = 0  # active control source
-    flags: int = 0  # ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open. UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it).
+    flags: int = 0  # ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open. UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it). ZEROING: an estimator zeroing window is active (automatic boot zero or ZeroEstimators); the vehicle must be kept still, Arm and MissionBegin are refused.
     failure_bits: int = 0
     sensor_state: int = 0
     last_req_id: int = 0  # last executed REQUEST id, 0 = none
@@ -150,6 +151,122 @@ class AirPose:
         t.q = [_rt.get_fixed(data, '<h', 4 + i * 2, 3.051850947599719e-05, -32768) for i in range(4)]
         t.pos = [_rt.get_fixed(data, '<i', 12 + i * 4, 0.001, -2147483648) for i in range(3)]
         t.vel = [_rt.get_fixed(data, '<h', 24 + i * 2, 0.01, -32768) for i in range(3)]
+        return t
+
+
+@dataclasses.dataclass
+class AirActuators:
+    """Actuator outputs for flight recording over the radio: two samples per packet (newest and the previous one, nominally 20 ms older), so 25 packets/s give 50 samples/s and one lost packet loses no sample. Same source and definitions as ACTUATORS. Array order: the newest sample first, then the previous one."""
+    PORT: ClassVar[Optional[int]] = 0x22
+    IS_HEARTBEAT: ClassVar[bool] = False
+    QOS: ClassVar[int] = 3  # telemetry
+    LATEST: ClassVar[bool] = True
+    AIR_ELIGIBLE: ClassVar[bool] = True
+    AIR_RATE_HZ: ClassVar[int] = 25
+    USB_RATE_HZ: ClassVar[int] = 0
+    MAX_SIZE: ClassVar[int] = 38
+    MIN_SIZE: ClassVar[int] = 38
+    t_us: int = 0  # [us] vehicle time of the newest sample, (NowNs/1000) mod 2^32
+    prev_age: float = 0.0  # [s] newest sample time minus previous sample time (nominally 0.020 s), NaN = no previous sample (its values are NaN too)
+    tvc: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # [rad] thrust vector deflection as ACTUATORS.tvc: [x, y] newest, then [x, y] previous; +-3.2767 rad at 0.1 mrad
+    roll_torque: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 2)  # [N*m] TVC twist (roll) actuation as the roll torque about body Z the vanes produce: newest, previous; +-0.32767 N*m at 0.01 mN*m
+    thrust: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 2)  # [N] thrust magnitude as ACTUATORS.thrust: newest, previous; 0..65.534 N at 1 mN
+    flaps: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 8)  # [rad] flap angles as ACTUATORS.flaps: [TL, TR, BL, BR] newest, then [TL, TR, BL, BR] previous; 0 = extended, increasing = folded toward the back
+
+    def encode(self) -> bytes:
+        """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
+        b = bytearray(38)
+        _rt.put(b, '<I', 0, self.t_us)
+        _rt.put_fixed(b, '<H', 4, self.prev_age, 1e-06, 0, 65534, 65535)
+        if len(self.tvc) != 4:
+            raise ValueError('tvc needs 4 elements')
+        for i, v in enumerate(self.tvc):
+            _rt.put_fixed(b, '<h', 6 + i * 2, v, 0.0001, -32767, 32767, -32768)
+        if len(self.roll_torque) != 2:
+            raise ValueError('roll_torque needs 2 elements')
+        for i, v in enumerate(self.roll_torque):
+            _rt.put_fixed(b, '<h', 14 + i * 2, v, 1e-05, -32767, 32767, -32768)
+        if len(self.thrust) != 2:
+            raise ValueError('thrust needs 2 elements')
+        for i, v in enumerate(self.thrust):
+            _rt.put_fixed(b, '<H', 18 + i * 2, v, 0.001, 0, 65534, 65535)
+        if len(self.flaps) != 8:
+            raise ValueError('flaps needs 8 elements')
+        for i, v in enumerate(self.flaps):
+            _rt.put_fixed(b, '<h', 22 + i * 2, v, 0.0001, -32767, 32767, -32768)
+        return bytes(b)
+
+    @classmethod
+    def decode(cls, data) -> "AirActuators":
+        """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
+        data = bytes(data)
+        if len(data) < cls.MIN_SIZE:
+            raise ValueError('AIR_ACTUATORS: payload too short (%d < 38)' % len(data))
+        t = cls()
+        t.t_us = _rt.get(data, '<I', 0)
+        t.prev_age = _rt.get_fixed(data, '<H', 4, 1e-06, 65535)
+        t.tvc = [_rt.get_fixed(data, '<h', 6 + i * 2, 0.0001, -32768) for i in range(4)]
+        t.roll_torque = [_rt.get_fixed(data, '<h', 14 + i * 2, 1e-05, -32768) for i in range(2)]
+        t.thrust = [_rt.get_fixed(data, '<H', 18 + i * 2, 0.001, 65535) for i in range(2)]
+        t.flaps = [_rt.get_fixed(data, '<h', 22 + i * 2, 0.0001, -32768) for i in range(8)]
+        return t
+
+
+@dataclasses.dataclass
+class AirMission:
+    """Mission state for the radio, the air version of MISSION (same definitions), fixed-point."""
+    PORT: ClassVar[Optional[int]] = 0x23
+    IS_HEARTBEAT: ClassVar[bool] = False
+    QOS: ClassVar[int] = 3  # telemetry
+    LATEST: ClassVar[bool] = True
+    AIR_ELIGIBLE: ClassVar[bool] = True
+    AIR_RATE_HZ: ClassVar[int] = 5
+    USB_RATE_HZ: ClassVar[int] = 0
+    MAX_SIZE: ClassVar[int] = 30
+    MIN_SIZE: ClassVar[int] = 30
+    t_us: int = 0  # [us] 
+    mission_time: float = 0.0  # [s] mission time as MISSION.mission_time, negative during the countdown
+    mission_mode: int = 0  # MissionMode of the active mission (as VEHICLE_STATUS.mission_mode)
+    phase: int = 0  # MissionPhase (as MISSION.phase)
+    index: int = 0  # selected mission index (as MISSION.index)
+    waypoint: int = 0  # current waypoint index of the waypoint mission, 255 = the active mission is not the waypoint mission
+    setpoint_pos: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m] guidance position setpoint, NWU, 1 mm resolution (as AIR_POSE.pos)
+    setpoint_vel: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m/s] guidance velocity setpoint, NWU, +-327.66 m/s (as AIR_POSE.vel)
+
+    def encode(self) -> bytes:
+        """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
+        b = bytearray(30)
+        _rt.put(b, '<I', 0, self.t_us)
+        _rt.put_fixed(b, '<i', 4, self.mission_time, 0.001, -2147483647, 2147483647, -2147483648)
+        _rt.put(b, '<B', 8, self.mission_mode)
+        _rt.put(b, '<B', 9, self.phase)
+        _rt.put(b, '<B', 10, self.index)
+        _rt.put(b, '<B', 11, self.waypoint)
+        if len(self.setpoint_pos) != 3:
+            raise ValueError('setpoint_pos needs 3 elements')
+        for i, v in enumerate(self.setpoint_pos):
+            _rt.put_fixed(b, '<i', 12 + i * 4, v, 0.001, -2147483647, 2147483647, -2147483648)
+        if len(self.setpoint_vel) != 3:
+            raise ValueError('setpoint_vel needs 3 elements')
+        for i, v in enumerate(self.setpoint_vel):
+            _rt.put_fixed(b, '<h', 24 + i * 2, v, 0.01, -32767, 32767, -32768)
+        return bytes(b)
+
+    @classmethod
+    def decode(cls, data) -> "AirMission":
+        """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
+        data = bytes(data)
+        if len(data) < cls.MIN_SIZE:
+            raise ValueError('AIR_MISSION: payload too short (%d < 30)' % len(data))
+        t = cls()
+        t.t_us = _rt.get(data, '<I', 0)
+        t.mission_time = _rt.get_fixed(data, '<i', 4, 0.001, -2147483648)
+        t.mission_mode = _rt.get(data, '<B', 8)
+        t.phase = _rt.get(data, '<B', 9)
+        t.index = _rt.get(data, '<B', 10)
+        t.waypoint = _rt.get(data, '<B', 11)
+        t.setpoint_pos = [_rt.get_fixed(data, '<i', 12 + i * 4, 0.001, -2147483648) for i in range(3)]
+        t.setpoint_vel = [_rt.get_fixed(data, '<h', 24 + i * 2, 0.01, -32768) for i in range(3)]
         return t
 
 

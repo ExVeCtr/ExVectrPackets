@@ -1,7 +1,7 @@
 # Starship vehicle packets (network-design.md 3.5.6, adapted by the user decisions in its Revision 1 box).
 #
 # Two telemetry sets:
-#   AIR set (radio, ports < 0x80, bare minimum, fixed-point): VEHICLE_STATUS, AIR_POSE, plus HANDSET_TELEM and
+#   AIR set (radio, ports < 0x80, bare minimum, fixed-point): VEHICLE_STATUS, AIR_POSE, AIR_ACTUATORS, AIR_MISSION, plus HANDSET_TELEM and
 #     LINK_STATS from common.toml.
 #   USB set (everything, ports >= 0x80 are USB only, f32/f64): the AIR set packets that have a USB rate, plus
 #     POSE, ACTUATORS, MISSION, GNSS and the debug packets. AIR_POSE is not sent on USB (POSE supersedes it).
@@ -49,7 +49,7 @@ fields = [
   { name = "mission_mode",    type = "u8" },
   { name = "mission_phase",   type = "u8" },
   { name = "ctrl_source",     type = "enum", enum = "ControlSource", doc = "active control source" },
-  { name = "flags",           type = "u8", bits = { ARMED = 0, SIMULATION = 1, MOTORS_ENABLED = 2, GS_PRESENT = 3, INCOMPATIBLE = 4, FAILSAFE = 5, UART_PEER_SEEN = 6 }, doc = "ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open. UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it)." },
+  { name = "flags",           type = "u8", bits = { ARMED = 0, SIMULATION = 1, MOTORS_ENABLED = 2, GS_PRESENT = 3, INCOMPATIBLE = 4, FAILSAFE = 5, UART_PEER_SEEN = 6, ZEROING = 7 }, doc = "ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open. UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it). ZEROING: an estimator zeroing window is active (automatic boot zero or ZeroEstimators); the vehicle must be kept still, Arm and MissionBegin are refused." },
   { name = "failure_bits",    type = "u32" },
   { name = "sensor_state",    type = "u16" },
   { name = "last_req_id",     type = "u16", doc = "last executed REQUEST id, 0 = none" },
@@ -68,6 +68,38 @@ fields = [
   { name = "q",    type = "fixed", wire = "i16", limit = 1.0, count = 4, doc = "[w,x,y,z] body -> world" },
   { name = "pos",  type = "fixed", wire = "i32", scale = 0.001, count = 3, unit = "m", doc = "NWU, 1 mm resolution, +-2147483.6 m" },
   { name = "vel",  type = "fixed", wire = "i16", scale = 0.01, count = 3, unit = "m/s", doc = "NWU, +-327.66 m/s" },
+]
+
+[packet.AIR_ACTUATORS]
+port = 0x22
+qos = "telemetry"
+latest = true
+rate_air = 25
+doc = "Actuator outputs for flight recording over the radio: two samples per packet (newest and the previous one, nominally 20 ms older), so 25 packets/s give 50 samples/s and one lost packet loses no sample. Same source and definitions as ACTUATORS. Array order: the newest sample first, then the previous one."
+fields = [
+  { name = "t_us",        type = "u32", unit = "us", doc = "vehicle time of the newest sample, (NowNs/1000) mod 2^32" },
+  { name = "prev_age",    type = "fixed", wire = "u16", scale = 0.000001, unit = "s", doc = "newest sample time minus previous sample time (nominally 0.020 s), NaN = no previous sample (its values are NaN too)" },
+  { name = "tvc",         type = "fixed", wire = "i16", scale = 0.0001, count = 4, unit = "rad", doc = "thrust vector deflection as ACTUATORS.tvc: [x, y] newest, then [x, y] previous; +-3.2767 rad at 0.1 mrad" },
+  { name = "roll_torque", type = "fixed", wire = "i16", scale = 0.00001, count = 2, unit = "N*m", doc = "TVC twist (roll) actuation as the roll torque about body Z the vanes produce: newest, previous; +-0.32767 N*m at 0.01 mN*m" },
+  { name = "thrust",      type = "fixed", wire = "u16", scale = 0.001, count = 2, unit = "N", doc = "thrust magnitude as ACTUATORS.thrust: newest, previous; 0..65.534 N at 1 mN" },
+  { name = "flaps",       type = "fixed", wire = "i16", scale = 0.0001, count = 8, unit = "rad", doc = "flap angles as ACTUATORS.flaps: [TL, TR, BL, BR] newest, then [TL, TR, BL, BR] previous; 0 = extended, increasing = folded toward the back" },
+]
+
+[packet.AIR_MISSION]
+port = 0x23
+qos = "telemetry"
+latest = true
+rate_air = 5
+doc = "Mission state for the radio, the air version of MISSION (same definitions), fixed-point."
+fields = [
+  { name = "t_us",         type = "u32", unit = "us" },
+  { name = "mission_time", type = "fixed", wire = "i32", scale = 0.001, unit = "s", doc = "mission time as MISSION.mission_time, negative during the countdown" },
+  { name = "mission_mode", type = "u8", doc = "MissionMode of the active mission (as VEHICLE_STATUS.mission_mode)" },
+  { name = "phase",        type = "u8", doc = "MissionPhase (as MISSION.phase)" },
+  { name = "index",        type = "u8", doc = "selected mission index (as MISSION.index)" },
+  { name = "waypoint",     type = "u8", doc = "current waypoint index of the waypoint mission, 255 = the active mission is not the waypoint mission" },
+  { name = "setpoint_pos", type = "fixed", wire = "i32", scale = 0.001, count = 3, unit = "m", doc = "guidance position setpoint, NWU, 1 mm resolution (as AIR_POSE.pos)" },
+  { name = "setpoint_vel", type = "fixed", wire = "i16", scale = 0.01, count = 3, unit = "m/s", doc = "guidance velocity setpoint, NWU, +-327.66 m/s (as AIR_POSE.vel)" },
 ]
 
 # ---------------------------------------------------------------- USB set

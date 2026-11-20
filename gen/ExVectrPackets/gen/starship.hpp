@@ -52,6 +52,7 @@ struct VehicleStatus {
     static constexpr uint8_t kFlagsIncompatible = uint8_t(1u << 4);
     static constexpr uint8_t kFlagsFailsafe = uint8_t(1u << 5);
     static constexpr uint8_t kFlagsUartPeerSeen = uint8_t(1u << 6);
+    static constexpr uint8_t kFlagsZeroing = uint8_t(1u << 7);
 
     uint32_t t_us = {}; // [us] vehicle time, (NowNs/1000) mod 2^32
     int64_t t_ns = {}; // [ns] full vehicle time NowNs()
@@ -59,7 +60,7 @@ struct VehicleStatus {
     uint8_t mission_mode = {};
     uint8_t mission_phase = {};
     ControlSource ctrl_source = {}; // active control source
-    uint8_t flags = {}; // ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open. UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it).
+    uint8_t flags = {}; // ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open. UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it). ZEROING: an estimator zeroing window is active (automatic boot zero or ZeroEstimators); the vehicle must be kept still, Arm and MissionBegin are refused.
     uint32_t failure_bits = {};
     uint16_t sensor_state = {};
     uint16_t last_req_id = {}; // last executed REQUEST id, 0 = none
@@ -173,6 +174,134 @@ struct AirPose {
         v.array("q", q);
         v.array("pos", pos);
         v.array("vel", vel);
+        (void)v;
+    }
+};
+
+/// Actuator outputs for flight recording over the radio: two samples per packet (newest and the previous one, nominally 20 ms older), so 25 packets/s give 50 samples/s and one lost packet loses no sample. Same source and definitions as ACTUATORS. Array order: the newest sample first, then the previous one.
+struct AirActuators {
+    static constexpr uint8_t kPort = 0x22;
+    static constexpr bool kIsHeartbeat = false;
+    static constexpr uint8_t kQos = 3; // telemetry (Control 0, Link 1, Event 2, Telemetry 3)
+    static constexpr bool kLatest = true;
+    static constexpr bool kAirEligible = true;
+    static constexpr uint16_t kAirRateHz = 25;
+    static constexpr uint16_t kUsbRateHz = 0;
+    static constexpr size_t kMaxSize = 38;
+    static constexpr size_t kMinSize = 38;
+
+    uint32_t t_us = {}; // [us] vehicle time of the newest sample, (NowNs/1000) mod 2^32
+    float prev_age = {}; // [s] newest sample time minus previous sample time (nominally 0.020 s), NaN = no previous sample (its values are NaN too)
+    float tvc[4] = {}; // [rad] thrust vector deflection as ACTUATORS.tvc: [x, y] newest, then [x, y] previous; +-3.2767 rad at 0.1 mrad
+    float roll_torque[2] = {}; // [N*m] TVC twist (roll) actuation as the roll torque about body Z the vanes produce: newest, previous; +-0.32767 N*m at 0.01 mN*m
+    float thrust[2] = {}; // [N] thrust magnitude as ACTUATORS.thrust: newest, previous; 0..65.534 N at 1 mN
+    float flaps[8] = {}; // [rad] flap angles as ACTUATORS.flaps: [TL, TR, BL, BR] newest, then [TL, TR, BL, BR] previous; 0 = extended, increasing = folded toward the back
+
+    /// Bytes written, 0 on failure (null buffer or too small).
+    size_t encode(uint8_t* out, size_t cap) const {
+        constexpr size_t total = 38;
+        if (out == nullptr || cap < total) return 0;
+        codec::put_u32(out + 0, t_us);
+        codec::put_u16(out + 4, static_cast<uint16_t>(codec::fixedEncode(prev_age, 1e-06, 0LL, 65534LL, 65535LL)));
+        for (size_t i = 0; i < 4; ++i) codec::put_i16(out + 6 + i * 2, static_cast<int16_t>(codec::fixedEncode(tvc[i], 0.0001, -32767LL, 32767LL, -32768LL)));
+        for (size_t i = 0; i < 2; ++i) codec::put_i16(out + 14 + i * 2, static_cast<int16_t>(codec::fixedEncode(roll_torque[i], 1e-05, -32767LL, 32767LL, -32768LL)));
+        for (size_t i = 0; i < 2; ++i) codec::put_u16(out + 18 + i * 2, static_cast<uint16_t>(codec::fixedEncode(thrust[i], 0.001, 0LL, 65534LL, 65535LL)));
+        for (size_t i = 0; i < 8; ++i) codec::put_i16(out + 22 + i * 2, static_cast<int16_t>(codec::fixedEncode(flaps[i], 0.0001, -32767LL, 32767LL, -32768LL)));
+        return total;
+    }
+
+    /// False if the payload is shorter than kMinSize (or a tail is too long). Longer payloads are accepted (extra
+    /// bytes ignored); optional fields missing from shorter payloads get their default/NaN.
+    bool decode(const uint8_t* in, size_t len) {
+        if (in == nullptr || len < kMinSize) return false;
+        AirActuators t;
+        t.t_us = codec::get_u32(in + 0);
+        t.prev_age = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 4), 1e-06, 65535LL));
+        for (size_t i = 0; i < 4; ++i) t.tvc[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 6 + i * 2), 0.0001, -32768LL));
+        for (size_t i = 0; i < 2; ++i) t.roll_torque[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 14 + i * 2), 1e-05, -32768LL));
+        for (size_t i = 0; i < 2; ++i) t.thrust[i] = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 18 + i * 2), 0.001, 65535LL));
+        for (size_t i = 0; i < 8; ++i) t.flaps[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 22 + i * 2), 0.0001, -32768LL));
+        *this = t;
+        return true;
+    }
+
+    /// Calls v.scalar/array/chars/tail(name, member) for every field (used by tests and tooling).
+    template <class V>
+    void visit(V& v) {
+        v.scalar("t_us", t_us);
+        v.scalar("prev_age", prev_age);
+        v.array("tvc", tvc);
+        v.array("roll_torque", roll_torque);
+        v.array("thrust", thrust);
+        v.array("flaps", flaps);
+        (void)v;
+    }
+};
+
+/// Mission state for the radio, the air version of MISSION (same definitions), fixed-point.
+struct AirMission {
+    static constexpr uint8_t kPort = 0x23;
+    static constexpr bool kIsHeartbeat = false;
+    static constexpr uint8_t kQos = 3; // telemetry (Control 0, Link 1, Event 2, Telemetry 3)
+    static constexpr bool kLatest = true;
+    static constexpr bool kAirEligible = true;
+    static constexpr uint16_t kAirRateHz = 5;
+    static constexpr uint16_t kUsbRateHz = 0;
+    static constexpr size_t kMaxSize = 30;
+    static constexpr size_t kMinSize = 30;
+
+    uint32_t t_us = {}; // [us] 
+    float mission_time = {}; // [s] mission time as MISSION.mission_time, negative during the countdown
+    uint8_t mission_mode = {}; // MissionMode of the active mission (as VEHICLE_STATUS.mission_mode)
+    uint8_t phase = {}; // MissionPhase (as MISSION.phase)
+    uint8_t index = {}; // selected mission index (as MISSION.index)
+    uint8_t waypoint = {}; // current waypoint index of the waypoint mission, 255 = the active mission is not the waypoint mission
+    float setpoint_pos[3] = {}; // [m] guidance position setpoint, NWU, 1 mm resolution (as AIR_POSE.pos)
+    float setpoint_vel[3] = {}; // [m/s] guidance velocity setpoint, NWU, +-327.66 m/s (as AIR_POSE.vel)
+
+    /// Bytes written, 0 on failure (null buffer or too small).
+    size_t encode(uint8_t* out, size_t cap) const {
+        constexpr size_t total = 30;
+        if (out == nullptr || cap < total) return 0;
+        codec::put_u32(out + 0, t_us);
+        codec::put_i32(out + 4, static_cast<int32_t>(codec::fixedEncode(mission_time, 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
+        codec::put_u8(out + 8, mission_mode);
+        codec::put_u8(out + 9, phase);
+        codec::put_u8(out + 10, index);
+        codec::put_u8(out + 11, waypoint);
+        for (size_t i = 0; i < 3; ++i) codec::put_i32(out + 12 + i * 4, static_cast<int32_t>(codec::fixedEncode(setpoint_pos[i], 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
+        for (size_t i = 0; i < 3; ++i) codec::put_i16(out + 24 + i * 2, static_cast<int16_t>(codec::fixedEncode(setpoint_vel[i], 0.01, -32767LL, 32767LL, -32768LL)));
+        return total;
+    }
+
+    /// False if the payload is shorter than kMinSize (or a tail is too long). Longer payloads are accepted (extra
+    /// bytes ignored); optional fields missing from shorter payloads get their default/NaN.
+    bool decode(const uint8_t* in, size_t len) {
+        if (in == nullptr || len < kMinSize) return false;
+        AirMission t;
+        t.t_us = codec::get_u32(in + 0);
+        t.mission_time = static_cast<float>(codec::fixedDecode(codec::get_i32(in + 4), 0.001, -2147483648LL));
+        t.mission_mode = codec::get_u8(in + 8);
+        t.phase = codec::get_u8(in + 9);
+        t.index = codec::get_u8(in + 10);
+        t.waypoint = codec::get_u8(in + 11);
+        for (size_t i = 0; i < 3; ++i) t.setpoint_pos[i] = static_cast<float>(codec::fixedDecode(codec::get_i32(in + 12 + i * 4), 0.001, -2147483648LL));
+        for (size_t i = 0; i < 3; ++i) t.setpoint_vel[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 24 + i * 2), 0.01, -32768LL));
+        *this = t;
+        return true;
+    }
+
+    /// Calls v.scalar/array/chars/tail(name, member) for every field (used by tests and tooling).
+    template <class V>
+    void visit(V& v) {
+        v.scalar("t_us", t_us);
+        v.scalar("mission_time", mission_time);
+        v.scalar("mission_mode", mission_mode);
+        v.scalar("phase", phase);
+        v.scalar("index", index);
+        v.scalar("waypoint", waypoint);
+        v.array("setpoint_pos", setpoint_pos);
+        v.array("setpoint_vel", setpoint_vel);
         (void)v;
     }
 };

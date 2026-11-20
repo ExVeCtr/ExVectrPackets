@@ -89,6 +89,25 @@ vel = [-327, 0, 1]
 S_Q = 1.0 / 32767
 ap = {"t_us": 1000, "q": [r * S_Q for r in q], "pos": [r * 0.001 for r in pos], "vel": [r * 0.01 for r in vel]}
 case("air_pose", "AIR_POSE", ap, P("I4h3i3h", 1000, *q, *pos, *vel))
+# AIR_ACTUATORS: two samples, saturation (tvc beyond +-3.2767 rad, thrust beyond 65.534 N) and NaN (sentinels)
+aa_tvc = [523, -523, 32767, -32767]          # 0.1 mrad
+aa_rt = [1500, -32767]                       # 0.01 mN*m
+aa_th = [12500, 0]                           # mN
+aa_fl = [2618, 2618, 15708, 15708, 2700, 2800, 32767, 0]
+aav = {"t_us": 123456, "prev_age": 0.02, "tvc": [r * 1e-4 for r in aa_tvc[:2]] + [4.0, -4.0],
+       "roll_torque": [0.015, -1.0], "thrust": [12.5, 0.0], "flaps": [r * 1e-4 for r in aa_fl[:6]] + [5.0, 0.0]}
+case("air_actuators", "AIR_ACTUATORS", aav, P("IH4h2h2H8h", 123456, 20000, *aa_tvc, *aa_rt, *aa_th, *aa_fl),
+     {**aav, "prev_age": 20000 * 1e-6, "tvc": [r * 1e-4 for r in aa_tvc], "roll_torque": [r * 1e-5 for r in aa_rt],
+      "thrust": [r * 1e-3 for r in aa_th], "flaps": [r * 1e-4 for r in aa_fl]})
+aan = {"t_us": 1, "prev_age": NAN, "tvc": [0.0, 0.0, NAN, NAN], "roll_torque": [0.0, NAN], "thrust": [1.0, NAN],
+       "flaps": [0.5, 0.5, 0.5, 0.5, NAN, NAN, NAN, NAN]}
+case("air_actuators_no_previous", "AIR_ACTUATORS", aan,
+     P("IH4h2h2H8h", 1, 65535, 0, 0, -32768, -32768, 0, -32768, 1000, 65535, *([5000] * 4), *([-32768] * 4)))
+amv = {"t_us": 77, "mission_time": -9.5, "mission_mode": 1, "phase": 1, "index": 1, "waypoint": 255,
+       "setpoint_pos": [0.0, -0.001, 120.0], "setpoint_vel": [0.0, 0.5, 7.0]}
+case("air_mission", "AIR_MISSION", amv, P("IiBBBB3i3h", 77, -9500, 1, 1, 1, 255, 0, -1, 120000, 0, 50, 700),
+     {**amv, "mission_time": -9500 * 0.001, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
+      "setpoint_vel": [0.0, 50 * 0.01, 700 * 0.01]})
 pv = {"t_us": 5, "omega": [0.5, -0.25, 1.0], "q": [1.0, 0.0, 0.0, -0.5], "vel": [1.5, 2.5, -3.5], "pos": [10.0, -20.0, 30.5]}
 case("pose", "POSE", pv, P("I3f4f3f3f", 5, *pv["omega"], *pv["q"], *pv["vel"], *pv["pos"]))
 av = {"t_us": 6, "flaps": [0.0, 0.25, 1.5, 0.75], "tvc": [0.125, -0.125], "thrust": 12.5, "ground_distance": NAN}

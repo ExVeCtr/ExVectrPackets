@@ -5,7 +5,7 @@ from .starship import *  # noqa: F401,F403
 from . import common, starship  # noqa: E402
 
 #: FNV-1a-32 over the canonical serialisation of all schema files (carried in heartbeats).
-SCHEMA_HASH = 0x4FE838D2
+SCHEMA_HASH = 0x761D5378
 
 #: port -> packet class
 PACKETS_BY_PORT = {
@@ -18,6 +18,8 @@ PACKETS_BY_PORT = {
     0x12: common.RequestAck,
     0x20: starship.VehicleStatus,
     0x21: starship.AirPose,
+    0x22: starship.AirActuators,
+    0x23: starship.AirMission,
     0x80: starship.Pose,
     0x81: starship.Actuators,
     0x82: starship.Mission,
@@ -40,6 +42,8 @@ PACKETS_BY_NAME = {
     'REQUEST_ACK': common.RequestAck,
     'VEHICLE_STATUS': starship.VehicleStatus,
     'AIR_POSE': starship.AirPose,
+    'AIR_ACTUATORS': starship.AirActuators,
+    'AIR_MISSION': starship.AirMission,
     'POSE': starship.Pose,
     'ACTUATORS': starship.Actuators,
     'MISSION': starship.Mission,

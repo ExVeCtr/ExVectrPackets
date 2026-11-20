@@ -327,6 +327,141 @@
    "hex": "e8030000ff7f018000000040640000009cffffff87d61200b9fe00000100"
   },
   {
+   "name": "air_actuators",
+   "packet": "AIR_ACTUATORS",
+   "values": {
+    "t_us": 123456,
+    "prev_age": 0.02,
+    "tvc": [
+     0.0523,
+     -0.0523,
+     4.0,
+     -4.0
+    ],
+    "roll_torque": [
+     0.015,
+     -1.0
+    ],
+    "thrust": [
+     12.5,
+     0.0
+    ],
+    "flaps": [
+     0.26180000000000003,
+     0.26180000000000003,
+     1.5708,
+     1.5708,
+     0.27,
+     0.28,
+     5.0,
+     0.0
+    ]
+   },
+   "hex": "40e20100204e0b02f5fdff7f0180dc050180d43000003a0a3a0a5c3d5c3d8c0af00aff7f0000",
+   "decoded": {
+    "t_us": 123456,
+    "prev_age": 0.02,
+    "tvc": [
+     0.0523,
+     -0.0523,
+     3.2767,
+     -3.2767
+    ],
+    "roll_torque": [
+     0.015000000000000001,
+     -0.32767
+    ],
+    "thrust": [
+     12.5,
+     0.0
+    ],
+    "flaps": [
+     0.26180000000000003,
+     0.26180000000000003,
+     1.5708,
+     1.5708,
+     0.27,
+     0.28,
+     3.2767,
+     0.0
+    ]
+   }
+  },
+  {
+   "name": "air_actuators_no_previous",
+   "packet": "AIR_ACTUATORS",
+   "values": {
+    "t_us": 1,
+    "prev_age": null,
+    "tvc": [
+     0.0,
+     0.0,
+     null,
+     null
+    ],
+    "roll_torque": [
+     0.0,
+     null
+    ],
+    "thrust": [
+     1.0,
+     null
+    ],
+    "flaps": [
+     0.5,
+     0.5,
+     0.5,
+     0.5,
+     null,
+     null,
+     null,
+     null
+    ]
+   },
+   "hex": "01000000ffff000000000080008000000080e803ffff88138813881388130080008000800080"
+  },
+  {
+   "name": "air_mission",
+   "packet": "AIR_MISSION",
+   "values": {
+    "t_us": 77,
+    "mission_time": -9.5,
+    "mission_mode": 1,
+    "phase": 1,
+    "index": 1,
+    "waypoint": 255,
+    "setpoint_pos": [
+     0.0,
+     -0.001,
+     120.0
+    ],
+    "setpoint_vel": [
+     0.0,
+     0.5,
+     7.0
+    ]
+   },
+   "hex": "4d000000e4daffff010101ff00000000ffffffffc0d4010000003200bc02",
+   "decoded": {
+    "t_us": 77,
+    "mission_time": -9.5,
+    "mission_mode": 1,
+    "phase": 1,
+    "index": 1,
+    "waypoint": 255,
+    "setpoint_pos": [
+     0.0,
+     -0.001,
+     120.0
+    ],
+    "setpoint_vel": [
+     0.0,
+     0.5,
+     7.0
+    ]
+   }
+  },
+  {
    "name": "pose",
    "packet": "POSE",
    "values": {
