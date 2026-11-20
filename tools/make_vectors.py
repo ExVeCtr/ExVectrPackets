@@ -49,6 +49,8 @@ case("link_stats", "LINK_STATS",
      {"uptime": 123.456, "air_state": 3, "rx_lq": 97, "rssi": -80, "snr": -7, "tx_power": 14, "antenna": 0x21,
       "air_rx_ok": 1000, "air_rx_bad": 3, "frames_dropped": 2, "frames_expired": 1, "queue_peak": 55},
      P("IBBbbbBHHHHB", 123456, 3, 97, -80, -7, 14, 0x21, 1000, 3, 2, 1, 55))
+case("link_config", "LINK_CONFIG", {"tx_power_dbm": 10, "flags": 0}, P("bB", 10, 0))
+case("link_config_negative", "LINK_CONFIG", {"tx_power_dbm": -3, "flags": 5}, P("bB", -3, 5))
 case("log_text", "LOG_TEXT", {"severity": 2, "text": "héllo"}, bytes([2]) + "héllo".encode())
 case("log_text_empty", "LOG_TEXT", {"severity": 0, "text": ""}, bytes([0]))
 lat_raw, lon_raw = 473977000, 85455000

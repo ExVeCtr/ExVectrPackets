@@ -269,7 +269,7 @@ struct Ops {
 template <class T> bool tryDecode(const uint8_t* p, size_t n) { T t; return t.decode(p, n); }
 #define OPS(N, T) {N, &opEncode<T>, &opDecode<T>, &tryDecode<T>}
 static const Ops kOps[] = {
-    OPS("HEARTBEAT", Heartbeat), OPS("LINK_STATS", LinkStats), OPS("LOG_TEXT", LogText),
+    OPS("HEARTBEAT", Heartbeat), OPS("LINK_STATS", LinkStats), OPS("LOG_TEXT", LogText), OPS("LINK_CONFIG", LinkConfig),
     OPS("HANDSET_TELEM", HandsetTelem), OPS("RC_STATE", RcState), OPS("REQUEST", Request),
     OPS("REQUEST_ACK", RequestAck), OPS("VEHICLE_STATUS", VehicleStatus), OPS("AIR_POSE", AirPose),
     OPS("POSE", Pose), OPS("ACTUATORS", Actuators), OPS("MISSION", Mission), OPS("GNSS", Gnss),

@@ -5,11 +5,12 @@ from .starship import *  # noqa: F401,F403
 from . import common, starship  # noqa: E402
 
 #: FNV-1a-32 over the canonical serialisation of all schema files (carried in heartbeats).
-SCHEMA_HASH = 0xEBD672E6
+SCHEMA_HASH = 0x8D56E26D
 
 #: port -> packet class
 PACKETS_BY_PORT = {
     0x01: common.LinkStats,
+    0x04: common.LinkConfig,
     0x02: common.LogText,
     0x03: common.HandsetTelem,
     0x10: common.RcState,
@@ -30,6 +31,7 @@ PACKETS_BY_PORT = {
 PACKETS_BY_NAME = {
     'HEARTBEAT': common.Heartbeat,
     'LINK_STATS': common.LinkStats,
+    'LINK_CONFIG': common.LinkConfig,
     'LOG_TEXT': common.LogText,
     'HANDSET_TELEM': common.HandsetTelem,
     'RC_STATE': common.RcState,

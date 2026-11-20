@@ -143,6 +143,40 @@ class LinkStats:
 
 
 @dataclasses.dataclass
+class LinkConfig:
+    """Link configuration state, sent continuously (about 2 Hz) by the Router (node 2, the configuration master) to the ship radio node (node 3). Never a one-shot event: the receiver applies the latest value and falls back to its defaults if the packet stops arriving for 10 s. Travels Router to air only; the Router drops it from USB, and unauthenticated on air (known issue). The ground station and the flight computer ignore it."""
+    PORT: ClassVar[Optional[int]] = 0x04
+    IS_HEARTBEAT: ClassVar[bool] = False
+    QOS: ClassVar[int] = 1  # link
+    LATEST: ClassVar[bool] = True
+    AIR_ELIGIBLE: ClassVar[bool] = True
+    AIR_RATE_HZ: ClassVar[int] = 2
+    USB_RATE_HZ: ClassVar[int] = 0
+    MAX_SIZE: ClassVar[int] = 2
+    MIN_SIZE: ClassVar[int] = 2
+    tx_power_dbm: int = 0  # [dBm] requested RF output power of the ship radio node; the receiver clamps it to 0..board maximum
+    flags: int = 0  # reserved, send 0, ignore on receive
+
+    def encode(self) -> bytes:
+        """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
+        b = bytearray(2)
+        _rt.put(b, '<b', 0, self.tx_power_dbm)
+        _rt.put(b, '<B', 1, self.flags)
+        return bytes(b)
+
+    @classmethod
+    def decode(cls, data) -> "LinkConfig":
+        """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
+        data = bytes(data)
+        if len(data) < cls.MIN_SIZE:
+            raise ValueError('LINK_CONFIG: payload too short (%d < 2)' % len(data))
+        t = cls()
+        t.tx_power_dbm = _rt.get(data, '<b', 0)
+        t.flags = _rt.get(data, '<B', 1)
+        return t
+
+
+@dataclasses.dataclass
 class LogText:
     """Log line from any node. Replaces the debug monitor."""
     PORT: ClassVar[Optional[int]] = 0x02

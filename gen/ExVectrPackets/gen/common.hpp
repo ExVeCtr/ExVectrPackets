@@ -175,6 +175,50 @@ struct LinkStats {
     }
 };
 
+/// Link configuration state, sent continuously (about 2 Hz) by the Router (node 2, the configuration master) to the ship radio node (node 3). Never a one-shot event: the receiver applies the latest value and falls back to its defaults if the packet stops arriving for 10 s. Travels Router to air only; the Router drops it from USB, and unauthenticated on air (known issue). The ground station and the flight computer ignore it.
+struct LinkConfig {
+    static constexpr uint8_t kPort = 0x04;
+    static constexpr bool kIsHeartbeat = false;
+    static constexpr uint8_t kQos = 1; // link (Control 0, Link 1, Event 2, Telemetry 3)
+    static constexpr bool kLatest = true;
+    static constexpr bool kAirEligible = true;
+    static constexpr uint16_t kAirRateHz = 2;
+    static constexpr uint16_t kUsbRateHz = 0;
+    static constexpr size_t kMaxSize = 2;
+    static constexpr size_t kMinSize = 2;
+
+    int8_t tx_power_dbm = {}; // [dBm] requested RF output power of the ship radio node; the receiver clamps it to 0..board maximum
+    uint8_t flags = {}; // reserved, send 0, ignore on receive
+
+    /// Bytes written, 0 on failure (null buffer or too small).
+    size_t encode(uint8_t* out, size_t cap) const {
+        constexpr size_t total = 2;
+        if (out == nullptr || cap < total) return 0;
+        codec::put_i8(out + 0, tx_power_dbm);
+        codec::put_u8(out + 1, flags);
+        return total;
+    }
+
+    /// False if the payload is shorter than kMinSize (or a tail is too long). Longer payloads are accepted (extra
+    /// bytes ignored); optional fields missing from shorter payloads get their default/NaN.
+    bool decode(const uint8_t* in, size_t len) {
+        if (in == nullptr || len < kMinSize) return false;
+        LinkConfig t;
+        t.tx_power_dbm = codec::get_i8(in + 0);
+        t.flags = codec::get_u8(in + 1);
+        *this = t;
+        return true;
+    }
+
+    /// Calls v.scalar/array/chars/tail(name, member) for every field (used by tests and tooling).
+    template <class V>
+    void visit(V& v) {
+        v.scalar("tx_power_dbm", tx_power_dbm);
+        v.scalar("flags", flags);
+        (void)v;
+    }
+};
+
 /// Log line from any node. Replaces the debug monitor.
 struct LogText {
     static constexpr uint8_t kPort = 0x02;

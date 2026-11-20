@@ -145,6 +145,24 @@
    "hex": "40e201000361b0f90e21e80303000200010037"
   },
   {
+   "name": "link_config",
+   "packet": "LINK_CONFIG",
+   "values": {
+    "tx_power_dbm": 10,
+    "flags": 0
+   },
+   "hex": "0a00"
+  },
+  {
+   "name": "link_config_negative",
+   "packet": "LINK_CONFIG",
+   "values": {
+    "tx_power_dbm": -3,
+    "flags": 5
+   },
+   "hex": "fd05"
+  },
+  {
    "name": "log_text",
    "packet": "LOG_TEXT",
    "values": {

@@ -57,6 +57,17 @@ fields = [
   { name = "queue_peak",     type = "u8", unit = "%", doc = "peak queue fill in the last 1 s" },
 ]
 
+[packet.LINK_CONFIG]
+port = 0x04
+qos = "link"
+latest = true
+rate_air = 2
+doc = "Link configuration state, sent continuously (about 2 Hz) by the Router (node 2, the configuration master) to the ship radio node (node 3). Never a one-shot event: the receiver applies the latest value and falls back to its defaults if the packet stops arriving for 10 s. Travels Router to air only; the Router drops it from USB, and unauthenticated on air (known issue). The ground station and the flight computer ignore it."
+fields = [
+  { name = "tx_power_dbm", type = "i8", unit = "dBm", doc = "requested RF output power of the ship radio node; the receiver clamps it to 0..board maximum" },
+  { name = "flags",        type = "u8", doc = "reserved, send 0, ignore on receive" },
+]
+
 [packet.LOG_TEXT]
 port = 0x02
 qos = "event"
