@@ -22,6 +22,11 @@ enum class RequestAction : uint8_t {
     kLinkReboot = 11,
 };
 
+enum class ImuFrame : uint8_t {
+    kSensor = 0,
+    kBody = 1,
+};
+
 enum class ControlSource : uint8_t {
     kNone = 0,
     kRadio = 1,
@@ -419,7 +424,7 @@ struct Gnss {
     }
 };
 
-/// Raw sensor values.
+/// Raw, uncalibrated sensor values in the sensor frame (the driver outputs, before calibration and the sensor->body transform). CALIBRATION holds what the vehicle applies to them.
 struct ImuRaw {
     static constexpr uint8_t kPort = 0x90;
     static constexpr bool kIsHeartbeat = false;
@@ -432,9 +437,9 @@ struct ImuRaw {
     static constexpr size_t kMinSize = 48;
 
     uint32_t t_us = {}; // [us] 
-    float gyro[3] = {}; // [rad/s] 
-    float accel[3] = {}; // [m/s^2] 
-    float mag[3] = {}; // [T] 
+    float gyro[3] = {}; // [rad/s] uncalibrated, sensor frame (Starship: MPU9250 driver output, chip axes remapped by the driver)
+    float accel[3] = {}; // [m/s^2] uncalibrated, sensor frame, specific force (reads +g upward at rest)
+    float mag[3] = {}; // [T] uncalibrated (no hard/soft iron), sensor frame (Starship: QMC5883 driver output)
     float pressure = {}; // [Pa] 
     float temperature = {}; // [K] 
 
@@ -579,6 +584,105 @@ struct TaskTiming {
         v.scalar("count", count);
         v.array("avg", avg);
         v.array("max", max);
+        (void)v;
+    }
+};
+
+/// Sensor calibration currently applied by the vehicle (continuous state, USB only, sent at 0.5 Hz: every 2 s; the integer rate fields cannot express it). Reproduces the calibrated gyro, accel and mag values from IMU_RAW: for each sensor, cal = M * (raw - offset) with M the 3x3 *_matrix row-major (M[r][c] = matrix[3*r + c]) and raw the IMU_RAW field in raw_frame; no temperature terms, no further remap. M already includes the sensor->body transform, so cal is in the body frame. The *_source bits say where the values came from. gyro_bias_est is the attitude EKF's own gyro bias state, subtracted after calibration (POSE omega = gyro cal - gyro_bias_est).
+struct Calibration {
+    static constexpr uint8_t kPort = 0x93;
+    static constexpr bool kIsHeartbeat = false;
+    static constexpr uint8_t kQos = 3; // telemetry (Control 0, Link 1, Event 2, Telemetry 3)
+    static constexpr bool kLatest = true;
+    static constexpr bool kAirEligible = false;
+    static constexpr uint16_t kAirRateHz = 0;
+    static constexpr uint16_t kUsbRateHz = 0;
+    static constexpr size_t kMaxSize = 164;
+    static constexpr size_t kMinSize = 164;
+    static constexpr uint8_t kGyroSourceCalibEeprom = uint8_t(1u << 0);
+    static constexpr uint8_t kGyroSourceTransformEeprom = uint8_t(1u << 1);
+    static constexpr uint8_t kGyroSourceOffsetOverride = uint8_t(1u << 2);
+    static constexpr uint8_t kGyroSourceRamOnly = uint8_t(1u << 3);
+    static constexpr uint8_t kGyroSourceMemoryCleared = uint8_t(1u << 4);
+    static constexpr uint8_t kAccelSourceCalibEeprom = uint8_t(1u << 0);
+    static constexpr uint8_t kAccelSourceTransformEeprom = uint8_t(1u << 1);
+    static constexpr uint8_t kAccelSourceOffsetOverride = uint8_t(1u << 2);
+    static constexpr uint8_t kAccelSourceRamOnly = uint8_t(1u << 3);
+    static constexpr uint8_t kAccelSourceMemoryCleared = uint8_t(1u << 4);
+    static constexpr uint8_t kMagSourceCalibEeprom = uint8_t(1u << 0);
+    static constexpr uint8_t kMagSourceTransformEeprom = uint8_t(1u << 1);
+    static constexpr uint8_t kMagSourceOffsetOverride = uint8_t(1u << 2);
+    static constexpr uint8_t kMagSourceRamOnly = uint8_t(1u << 3);
+    static constexpr uint8_t kMagSourceMemoryCleared = uint8_t(1u << 4);
+
+    uint32_t t_us = {}; // [us] 
+    ImuFrame raw_frame = {}; // frame of the IMU_RAW values these parameters apply to (SENSOR = driver output frame, before calibration)
+    uint8_t gyro_source = {}; // CALIB_EEPROM: offset/scale item read from EEPROM (else identity defaults). TRANSFORM_EEPROM: sensor->body matrix read from EEPROM (else identity). OFFSET_OVERRIDE: offset hard-coded in the firmware, the stored one is ignored. RAM_ONLY: changed at run time, not saved yet. MEMORY_CLEARED: EEPROM image cleared at boot (version mismatch)
+    uint8_t accel_source = {}; // as gyro_source
+    uint8_t mag_source = {}; // as gyro_source
+    float gyro_offset[3] = {}; // [rad/s] subtracted from the raw gyro, raw frame
+    float gyro_matrix[9] = {}; // row-major 3x3, scale/misalignment times sensor->body
+    float accel_offset[3] = {}; // [m/s^2] subtracted from the raw accel, raw frame
+    float accel_matrix[9] = {}; // row-major 3x3, scale/misalignment times sensor->body
+    float mag_offset[3] = {}; // [T] hard-iron offset, subtracted from the raw mag, raw frame
+    float mag_matrix[9] = {}; // row-major 3x3, soft-iron/scale times sensor->body (dimensionless: T in, T out)
+    float gyro_bias_est[3] = {}; // [rad/s] attitude EKF gyro bias state, body frame, subtracted from the calibrated gyro
+
+    /// Bytes written, 0 on failure (null buffer or too small).
+    size_t encode(uint8_t* out, size_t cap) const {
+        constexpr size_t total = 164;
+        if (out == nullptr || cap < total) return 0;
+        codec::put_u32(out + 0, t_us);
+        codec::put_u8(out + 4, static_cast<uint8_t>(raw_frame));
+        codec::put_u8(out + 5, gyro_source);
+        codec::put_u8(out + 6, accel_source);
+        codec::put_u8(out + 7, mag_source);
+        for (size_t i = 0; i < 3; ++i) codec::put_f32(out + 8 + i * 4, gyro_offset[i]);
+        for (size_t i = 0; i < 9; ++i) codec::put_f32(out + 20 + i * 4, gyro_matrix[i]);
+        for (size_t i = 0; i < 3; ++i) codec::put_f32(out + 56 + i * 4, accel_offset[i]);
+        for (size_t i = 0; i < 9; ++i) codec::put_f32(out + 68 + i * 4, accel_matrix[i]);
+        for (size_t i = 0; i < 3; ++i) codec::put_f32(out + 104 + i * 4, mag_offset[i]);
+        for (size_t i = 0; i < 9; ++i) codec::put_f32(out + 116 + i * 4, mag_matrix[i]);
+        for (size_t i = 0; i < 3; ++i) codec::put_f32(out + 152 + i * 4, gyro_bias_est[i]);
+        return total;
+    }
+
+    /// False if the payload is shorter than kMinSize (or a tail is too long). Longer payloads are accepted (extra
+    /// bytes ignored); optional fields missing from shorter payloads get their default/NaN.
+    bool decode(const uint8_t* in, size_t len) {
+        if (in == nullptr || len < kMinSize) return false;
+        Calibration t;
+        t.t_us = codec::get_u32(in + 0);
+        t.raw_frame = static_cast<ImuFrame>(codec::get_u8(in + 4));
+        t.gyro_source = codec::get_u8(in + 5);
+        t.accel_source = codec::get_u8(in + 6);
+        t.mag_source = codec::get_u8(in + 7);
+        for (size_t i = 0; i < 3; ++i) t.gyro_offset[i] = codec::get_f32(in + 8 + i * 4);
+        for (size_t i = 0; i < 9; ++i) t.gyro_matrix[i] = codec::get_f32(in + 20 + i * 4);
+        for (size_t i = 0; i < 3; ++i) t.accel_offset[i] = codec::get_f32(in + 56 + i * 4);
+        for (size_t i = 0; i < 9; ++i) t.accel_matrix[i] = codec::get_f32(in + 68 + i * 4);
+        for (size_t i = 0; i < 3; ++i) t.mag_offset[i] = codec::get_f32(in + 104 + i * 4);
+        for (size_t i = 0; i < 9; ++i) t.mag_matrix[i] = codec::get_f32(in + 116 + i * 4);
+        for (size_t i = 0; i < 3; ++i) t.gyro_bias_est[i] = codec::get_f32(in + 152 + i * 4);
+        *this = t;
+        return true;
+    }
+
+    /// Calls v.scalar/array/chars/tail(name, member) for every field (used by tests and tooling).
+    template <class V>
+    void visit(V& v) {
+        v.scalar("t_us", t_us);
+        v.scalar("raw_frame", raw_frame);
+        v.scalar("gyro_source", gyro_source);
+        v.scalar("accel_source", accel_source);
+        v.scalar("mag_source", mag_source);
+        v.array("gyro_offset", gyro_offset);
+        v.array("gyro_matrix", gyro_matrix);
+        v.array("accel_offset", accel_offset);
+        v.array("accel_matrix", accel_matrix);
+        v.array("mag_offset", mag_offset);
+        v.array("mag_matrix", mag_matrix);
+        v.array("gyro_bias_est", gyro_bias_est);
         (void)v;
     }
 };

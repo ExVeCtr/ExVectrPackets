@@ -5,7 +5,7 @@ from .starship import *  # noqa: F401,F403
 from . import common, starship  # noqa: E402
 
 #: FNV-1a-32 over the canonical serialisation of all schema files (carried in heartbeats).
-SCHEMA_HASH = 0x8D56E26D
+SCHEMA_HASH = 0xCFB7AEED
 
 #: port -> packet class
 PACKETS_BY_PORT = {
@@ -25,6 +25,7 @@ PACKETS_BY_PORT = {
     0x90: starship.ImuRaw,
     0x91: starship.Estimator,
     0x92: starship.TaskTiming,
+    0x93: starship.Calibration,
 }
 
 #: schema name -> packet class
@@ -46,4 +47,5 @@ PACKETS_BY_NAME = {
     'IMU_RAW': starship.ImuRaw,
     'ESTIMATOR': starship.Estimator,
     'TASK_TIMING': starship.TaskTiming,
+    'CALIBRATION': starship.Calibration,
 }

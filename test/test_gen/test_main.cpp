@@ -273,7 +273,7 @@ static const Ops kOps[] = {
     OPS("HANDSET_TELEM", HandsetTelem), OPS("RC_STATE", RcState), OPS("REQUEST", Request),
     OPS("REQUEST_ACK", RequestAck), OPS("VEHICLE_STATUS", VehicleStatus), OPS("AIR_POSE", AirPose),
     OPS("POSE", Pose), OPS("ACTUATORS", Actuators), OPS("MISSION", Mission), OPS("GNSS", Gnss),
-    OPS("IMU_RAW", ImuRaw), OPS("ESTIMATOR", Estimator), OPS("TASK_TIMING", TaskTiming),
+    OPS("IMU_RAW", ImuRaw), OPS("ESTIMATOR", Estimator), OPS("TASK_TIMING", TaskTiming), OPS("CALIBRATION", Calibration),
     OPS("KITCHEN_SINK", KitchenSink), OPS("OPTIONAL_TEST", OptionalTest),
 };
 static const Ops& find(const std::string& n) {

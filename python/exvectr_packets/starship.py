@@ -21,6 +21,11 @@ class RequestAction(enum.IntEnum):
     LINK_REBOOT = 11
 
 
+class ImuFrame(enum.IntEnum):
+    SENSOR = 0
+    BODY = 1
+
+
 class ControlSource(enum.IntEnum):
     NONE = 0
     RADIO = 1
@@ -366,7 +371,7 @@ class Gnss:
 
 @dataclasses.dataclass
 class ImuRaw:
-    """Raw sensor values."""
+    """Raw, uncalibrated sensor values in the sensor frame (the driver outputs, before calibration and the sensor->body transform). CALIBRATION holds what the vehicle applies to them."""
     PORT: ClassVar[Optional[int]] = 0x90
     IS_HEARTBEAT: ClassVar[bool] = False
     QOS: ClassVar[int] = 3  # telemetry
@@ -377,9 +382,9 @@ class ImuRaw:
     MAX_SIZE: ClassVar[int] = 48
     MIN_SIZE: ClassVar[int] = 48
     t_us: int = 0  # [us] 
-    gyro: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [rad/s] 
-    accel: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m/s^2] 
-    mag: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [T] 
+    gyro: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [rad/s] uncalibrated, sensor frame (Starship: MPU9250 driver output, chip axes remapped by the driver)
+    accel: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m/s^2] uncalibrated, sensor frame, specific force (reads +g upward at rest)
+    mag: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [T] uncalibrated (no hard/soft iron), sensor frame (Starship: QMC5883 driver output)
     pressure: float = 0.0  # [Pa] 
     temperature: float = 0.0  # [K] 
 
@@ -511,5 +516,105 @@ class TaskTiming:
         t.count = _rt.get(data, '<B', 4)
         t.avg = [_rt.get_fixed(data, '<H', 5 + i * 2, 1e-06, 65535) for i in range(8)]
         t.max = [_rt.get_fixed(data, '<H', 21 + i * 2, 1e-06, 65535) for i in range(8)]
+        return t
+
+
+@dataclasses.dataclass
+class Calibration:
+    """Sensor calibration currently applied by the vehicle (continuous state, USB only, sent at 0.5 Hz: every 2 s; the integer rate fields cannot express it). Reproduces the calibrated gyro, accel and mag values from IMU_RAW: for each sensor, cal = M * (raw - offset) with M the 3x3 *_matrix row-major (M[r][c] = matrix[3*r + c]) and raw the IMU_RAW field in raw_frame; no temperature terms, no further remap. M already includes the sensor->body transform, so cal is in the body frame. The *_source bits say where the values came from. gyro_bias_est is the attitude EKF's own gyro bias state, subtracted after calibration (POSE omega = gyro cal - gyro_bias_est)."""
+    PORT: ClassVar[Optional[int]] = 0x93
+    IS_HEARTBEAT: ClassVar[bool] = False
+    QOS: ClassVar[int] = 3  # telemetry
+    LATEST: ClassVar[bool] = True
+    AIR_ELIGIBLE: ClassVar[bool] = False
+    AIR_RATE_HZ: ClassVar[int] = 0
+    USB_RATE_HZ: ClassVar[int] = 0
+    MAX_SIZE: ClassVar[int] = 164
+    MIN_SIZE: ClassVar[int] = 164
+    GYRO_SOURCE_CALIB_EEPROM: ClassVar[int] = 1
+    GYRO_SOURCE_TRANSFORM_EEPROM: ClassVar[int] = 2
+    GYRO_SOURCE_OFFSET_OVERRIDE: ClassVar[int] = 4
+    GYRO_SOURCE_RAM_ONLY: ClassVar[int] = 8
+    GYRO_SOURCE_MEMORY_CLEARED: ClassVar[int] = 16
+    ACCEL_SOURCE_CALIB_EEPROM: ClassVar[int] = 1
+    ACCEL_SOURCE_TRANSFORM_EEPROM: ClassVar[int] = 2
+    ACCEL_SOURCE_OFFSET_OVERRIDE: ClassVar[int] = 4
+    ACCEL_SOURCE_RAM_ONLY: ClassVar[int] = 8
+    ACCEL_SOURCE_MEMORY_CLEARED: ClassVar[int] = 16
+    MAG_SOURCE_CALIB_EEPROM: ClassVar[int] = 1
+    MAG_SOURCE_TRANSFORM_EEPROM: ClassVar[int] = 2
+    MAG_SOURCE_OFFSET_OVERRIDE: ClassVar[int] = 4
+    MAG_SOURCE_RAM_ONLY: ClassVar[int] = 8
+    MAG_SOURCE_MEMORY_CLEARED: ClassVar[int] = 16
+    t_us: int = 0  # [us] 
+    raw_frame: ImuFrame = 0  # frame of the IMU_RAW values these parameters apply to (SENSOR = driver output frame, before calibration)
+    gyro_source: int = 0  # CALIB_EEPROM: offset/scale item read from EEPROM (else identity defaults). TRANSFORM_EEPROM: sensor->body matrix read from EEPROM (else identity). OFFSET_OVERRIDE: offset hard-coded in the firmware, the stored one is ignored. RAM_ONLY: changed at run time, not saved yet. MEMORY_CLEARED: EEPROM image cleared at boot (version mismatch)
+    accel_source: int = 0  # as gyro_source
+    mag_source: int = 0  # as gyro_source
+    gyro_offset: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [rad/s] subtracted from the raw gyro, raw frame
+    gyro_matrix: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 9)  # row-major 3x3, scale/misalignment times sensor->body
+    accel_offset: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m/s^2] subtracted from the raw accel, raw frame
+    accel_matrix: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 9)  # row-major 3x3, scale/misalignment times sensor->body
+    mag_offset: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [T] hard-iron offset, subtracted from the raw mag, raw frame
+    mag_matrix: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 9)  # row-major 3x3, soft-iron/scale times sensor->body (dimensionless: T in, T out)
+    gyro_bias_est: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [rad/s] attitude EKF gyro bias state, body frame, subtracted from the calibrated gyro
+
+    def encode(self) -> bytes:
+        """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
+        b = bytearray(164)
+        _rt.put(b, '<I', 0, self.t_us)
+        _rt.put(b, '<B', 4, int(self.raw_frame))
+        _rt.put(b, '<B', 5, self.gyro_source)
+        _rt.put(b, '<B', 6, self.accel_source)
+        _rt.put(b, '<B', 7, self.mag_source)
+        if len(self.gyro_offset) != 3:
+            raise ValueError('gyro_offset needs 3 elements')
+        for i, v in enumerate(self.gyro_offset):
+            _rt.put_f32(b, 8 + i * 4, v)
+        if len(self.gyro_matrix) != 9:
+            raise ValueError('gyro_matrix needs 9 elements')
+        for i, v in enumerate(self.gyro_matrix):
+            _rt.put_f32(b, 20 + i * 4, v)
+        if len(self.accel_offset) != 3:
+            raise ValueError('accel_offset needs 3 elements')
+        for i, v in enumerate(self.accel_offset):
+            _rt.put_f32(b, 56 + i * 4, v)
+        if len(self.accel_matrix) != 9:
+            raise ValueError('accel_matrix needs 9 elements')
+        for i, v in enumerate(self.accel_matrix):
+            _rt.put_f32(b, 68 + i * 4, v)
+        if len(self.mag_offset) != 3:
+            raise ValueError('mag_offset needs 3 elements')
+        for i, v in enumerate(self.mag_offset):
+            _rt.put_f32(b, 104 + i * 4, v)
+        if len(self.mag_matrix) != 9:
+            raise ValueError('mag_matrix needs 9 elements')
+        for i, v in enumerate(self.mag_matrix):
+            _rt.put_f32(b, 116 + i * 4, v)
+        if len(self.gyro_bias_est) != 3:
+            raise ValueError('gyro_bias_est needs 3 elements')
+        for i, v in enumerate(self.gyro_bias_est):
+            _rt.put_f32(b, 152 + i * 4, v)
+        return bytes(b)
+
+    @classmethod
+    def decode(cls, data) -> "Calibration":
+        """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
+        data = bytes(data)
+        if len(data) < cls.MIN_SIZE:
+            raise ValueError('CALIBRATION: payload too short (%d < 164)' % len(data))
+        t = cls()
+        t.t_us = _rt.get(data, '<I', 0)
+        t.raw_frame = _rt.to_enum(ImuFrame, _rt.get(data, '<B', 4))
+        t.gyro_source = _rt.get(data, '<B', 5)
+        t.accel_source = _rt.get(data, '<B', 6)
+        t.mag_source = _rt.get(data, '<B', 7)
+        t.gyro_offset = [_rt.get(data, '<f', 8 + i * 4) for i in range(3)]
+        t.gyro_matrix = [_rt.get(data, '<f', 20 + i * 4) for i in range(9)]
+        t.accel_offset = [_rt.get(data, '<f', 56 + i * 4) for i in range(3)]
+        t.accel_matrix = [_rt.get(data, '<f', 68 + i * 4) for i in range(9)]
+        t.mag_offset = [_rt.get(data, '<f', 104 + i * 4) for i in range(3)]
+        t.mag_matrix = [_rt.get(data, '<f', 116 + i * 4) for i in range(9)]
+        t.gyro_bias_est = [_rt.get(data, '<f', 152 + i * 4) for i in range(3)]
         return t
 

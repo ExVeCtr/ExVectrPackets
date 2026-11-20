@@ -105,6 +105,19 @@ iv = {"t_us": 9, "gyro": [0.5, 0.25, -0.125], "accel": [0.0, 0.0, 9.75], "mag": 
 case("imu_raw", "IMU_RAW", iv, P("I3f3f3fff", 9, 0.5, 0.25, -0.125, 0.0, 0.0, 9.75, 2.0, -4.0, 8.0, 101325.0, 293.5))
 ev = {"t_us": 10, "att_std": [0.5, 0.5, 0.25], "vel_std": [0.125, 0.125, 0.125], "pos_std": [1.0, 1.0, 2.0]}
 case("estimator", "ESTIMATOR", ev, P("I3f3f3f", 10, 0.5, 0.5, 0.25, 0.125, 0.125, 0.125, 1.0, 1.0, 2.0))
+cm = [1.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.5]
+cv = {"t_us": 12, "raw_frame": 0, "gyro_source": 0x05, "accel_source": 0x03, "mag_source": 0x19,
+      "gyro_offset": [0.015625, 0.03125, -0.0078125], "gyro_matrix": cm,
+      "accel_offset": [0.25, -0.5, 1.5], "accel_matrix": [0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0],
+      "mag_offset": [1.5e-05, -2.5e-06, 4e-06], "mag_matrix": [2.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0],
+      "gyro_bias_est": [0.001, NAN, -0.002]}
+case("calibration", "CALIBRATION", cv,
+     P("IBBBB3f9f3f9f3f9f3f", 12, 0, 0x05, 0x03, 0x19, 0.015625, 0.03125, -0.0078125, *cm, 0.25, -0.5, 1.5,
+       0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 1.5e-05, -2.5e-06, 4e-06, 2.0, 0.0, 0.0, 0.0, 2.0, 0.0,
+       0.0, 0.0, 2.0, 0.001, float("nan"), -0.002),
+     {**cv, "mag_offset": [struct.unpack("<f", struct.pack("<f", v))[0] for v in cv["mag_offset"]],
+      "gyro_bias_est": [struct.unpack("<f", struct.pack("<f", 0.001))[0], NAN,
+                        struct.unpack("<f", struct.pack("<f", -0.002))[0]]})
 tavg = [100, 200, 300, 400, 500, 600, 700, 65535]
 tmax = [150, 250, 350, 450, 550, 650, 750, 65534]
 tv = {"t_us": 11, "count": 7, "avg": [r * 1e-6 for r in tavg[:7]] + [NAN], "max": [r * 1e-6 for r in tmax]}
