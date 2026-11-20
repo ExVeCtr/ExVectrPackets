@@ -60,6 +60,18 @@
    "hex": "05000a030000000000000000"
   },
   {
+   "name": "request_link_reboot",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 6,
+    "action": 11,
+    "target": 2,
+    "arg_i": 0,
+    "arg_f": 0.0
+   },
+   "hex": "06000b020000000000000000"
+  },
+  {
    "name": "rc_state",
    "packet": "RC_STATE",
    "values": {

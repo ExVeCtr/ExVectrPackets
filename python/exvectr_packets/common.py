@@ -299,7 +299,7 @@ class RcState:
 
 @dataclasses.dataclass
 class Request:
-    """One-shot non-safety action with an idempotent id. The action enum is in starship.toml (RequestAction). Exception: action LINK_UPLOAD_MODE (target = link module node id, 2 = TX, 3 = RX) makes that module stop the air link and enter its over-the-air firmware upload (WiFi) mode. It is always honoured with no safety condition (the module cannot know if the vehicle is flying), so senders must never send it unintentionally; arg_i and arg_f are 0, REQUEST_ACK detail is 0."""
+    """One-shot non-safety action with an idempotent id. The action enum is in starship.toml (RequestAction). Exception: action LINK_UPLOAD_MODE (target = link module node id, 2 = TX, 3 = RX) makes that module stop the air link and enter its over-the-air firmware upload (WiFi) mode. It is always honoured with no safety condition (the module cannot know if the vehicle is flying), so senders must never send it unintentionally; arg_i and arg_f are 0, REQUEST_ACK detail is 0. Action LINK_REBOOT (11) has the same semantics (same target, always honoured, ACK first, same delay) but makes the module do a clean software restart instead; a reboot of the RX module in flight stops RC for a few seconds (failsafe), so senders must guard it."""
     PORT: ClassVar[Optional[int]] = 0x11
     IS_HEARTBEAT: ClassVar[bool] = False
     QOS: ClassVar[int] = 2  # event

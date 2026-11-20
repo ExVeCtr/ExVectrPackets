@@ -19,6 +19,7 @@ enum class RequestAction : uint8_t {
     kSaveConfig = 8,
     kSystemReset = 9,
     kLinkUploadMode = 10,
+    kLinkReboot = 11,
 };
 
 enum class ControlSource : uint8_t {

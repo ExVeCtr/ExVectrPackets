@@ -40,6 +40,8 @@ case("request", "REQUEST", {"req_id": 0x0102, "action": 7, "target": 2, "arg_i":
      P("HBBif", 0x0102, 7, 2, -5, 1.5))
 case("request_link_upload_mode", "REQUEST", {"req_id": 5, "action": 10, "target": 3, "arg_i": 0, "arg_f": 0.0},
      P("HBBif", 5, 10, 3, 0, 0.0))
+case("request_link_reboot", "REQUEST", {"req_id": 6, "action": 11, "target": 2, "arg_i": 0, "arg_f": 0.0},
+     P("HBBif", 6, 11, 2, 0, 0.0))
 ch = [-1000, -500, 0, 500, 1000, -32768, 1, -1, 100, 200, 300, 400, 500, 600, 700, 800]
 case("rc_state", "RC_STATE", {"flags": 1, "reserved": 0, "ch": ch}, P("BB16h", 1, 0, *ch))
 case("rc_state_not_ok", "RC_STATE", {"flags": 0, "reserved": 0, "ch": [0] * 16}, P("BB16h", 0, 0, *([0] * 16)))

@@ -18,6 +18,7 @@ class RequestAction(enum.IntEnum):
     SAVE_CONFIG = 8
     SYSTEM_RESET = 9
     LINK_UPLOAD_MODE = 10
+    LINK_REBOOT = 11
 
 
 class ControlSource(enum.IntEnum):
