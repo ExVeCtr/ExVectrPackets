@@ -247,7 +247,7 @@ struct AirMission {
     static constexpr bool kAirEligible = true;
     static constexpr uint16_t kAirRateHz = 5;
     static constexpr uint16_t kUsbRateHz = 0;
-    static constexpr size_t kMaxSize = 30;
+    static constexpr size_t kMaxSize = 38;
     static constexpr size_t kMinSize = 30;
 
     uint32_t t_us = {}; // [us] 
@@ -258,10 +258,11 @@ struct AirMission {
     uint8_t waypoint = {}; // current waypoint index of the waypoint mission, 255 = the active mission is not the waypoint mission
     float setpoint_pos[3] = {}; // [m] guidance position setpoint, NWU, 1 mm resolution (as AIR_POSE.pos)
     float setpoint_vel[3] = {}; // [m/s] guidance velocity setpoint, NWU, +-327.66 m/s (as AIR_POSE.vel)
+    float setpoint_q[4] = {}; // attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as AIR_POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 30;
+        constexpr size_t total = 38;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         codec::put_i32(out + 4, static_cast<int32_t>(codec::fixedEncode(mission_time, 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
@@ -271,6 +272,7 @@ struct AirMission {
         codec::put_u8(out + 11, waypoint);
         for (size_t i = 0; i < 3; ++i) codec::put_i32(out + 12 + i * 4, static_cast<int32_t>(codec::fixedEncode(setpoint_pos[i], 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
         for (size_t i = 0; i < 3; ++i) codec::put_i16(out + 24 + i * 2, static_cast<int16_t>(codec::fixedEncode(setpoint_vel[i], 0.01, -32767LL, 32767LL, -32768LL)));
+        for (size_t i = 0; i < 4; ++i) codec::put_i16(out + 30 + i * 2, static_cast<int16_t>(codec::fixedEncode(setpoint_q[i], 3.051850947599719e-05, -32767LL, 32767LL, -32768LL)));
         return total;
     }
 
@@ -287,6 +289,11 @@ struct AirMission {
         t.waypoint = codec::get_u8(in + 11);
         for (size_t i = 0; i < 3; ++i) t.setpoint_pos[i] = static_cast<float>(codec::fixedDecode(codec::get_i32(in + 12 + i * 4), 0.001, -2147483648LL));
         for (size_t i = 0; i < 3; ++i) t.setpoint_vel[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 24 + i * 2), 0.01, -32768LL));
+        if (len >= 38) {
+            for (size_t i = 0; i < 4; ++i) t.setpoint_q[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 30 + i * 2), 3.051850947599719e-05, -32768LL));
+        } else {
+            for (size_t i = 0; i < 4; ++i) t.setpoint_q[i] = std::numeric_limits<float>::quiet_NaN();
+        }
         *this = t;
         return true;
     }
@@ -302,6 +309,7 @@ struct AirMission {
         v.scalar("waypoint", waypoint);
         v.array("setpoint_pos", setpoint_pos);
         v.array("setpoint_vel", setpoint_vel);
+        v.array("setpoint_q", setpoint_q);
         (void)v;
     }
 };
@@ -427,7 +435,7 @@ struct Mission {
     static constexpr bool kAirEligible = false;
     static constexpr uint16_t kAirRateHz = 0;
     static constexpr uint16_t kUsbRateHz = 20;
-    static constexpr size_t kMaxSize = 34;
+    static constexpr size_t kMaxSize = 50;
     static constexpr size_t kMinSize = 34;
 
     uint32_t t_us = {}; // [us] 
@@ -436,10 +444,11 @@ struct Mission {
     float mission_time = {}; // [s] 
     uint8_t index = {};
     uint8_t phase = {};
+    float setpoint_q[4] = {}; // attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 34;
+        constexpr size_t total = 50;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         for (size_t i = 0; i < 3; ++i) codec::put_f32(out + 4 + i * 4, setpoint_pos[i]);
@@ -447,6 +456,7 @@ struct Mission {
         codec::put_i32(out + 28, static_cast<int32_t>(codec::fixedEncode(mission_time, 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
         codec::put_u8(out + 32, index);
         codec::put_u8(out + 33, phase);
+        for (size_t i = 0; i < 4; ++i) codec::put_f32(out + 34 + i * 4, setpoint_q[i]);
         return total;
     }
 
@@ -461,6 +471,11 @@ struct Mission {
         t.mission_time = static_cast<float>(codec::fixedDecode(codec::get_i32(in + 28), 0.001, -2147483648LL));
         t.index = codec::get_u8(in + 32);
         t.phase = codec::get_u8(in + 33);
+        if (len >= 50) {
+            for (size_t i = 0; i < 4; ++i) t.setpoint_q[i] = codec::get_f32(in + 34 + i * 4);
+        } else {
+            for (size_t i = 0; i < 4; ++i) t.setpoint_q[i] = std::numeric_limits<float>::quiet_NaN();
+        }
         *this = t;
         return true;
     }
@@ -474,6 +489,7 @@ struct Mission {
         v.scalar("mission_time", mission_time);
         v.scalar("index", index);
         v.scalar("phase", phase);
+        v.array("setpoint_q", setpoint_q);
         (void)v;
     }
 };

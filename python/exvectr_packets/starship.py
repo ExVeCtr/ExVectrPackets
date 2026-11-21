@@ -222,7 +222,7 @@ class AirMission:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 5
     USB_RATE_HZ: ClassVar[int] = 0
-    MAX_SIZE: ClassVar[int] = 30
+    MAX_SIZE: ClassVar[int] = 38
     MIN_SIZE: ClassVar[int] = 30
     t_us: int = 0  # [us] 
     mission_time: float = 0.0  # [s] mission time as MISSION.mission_time, negative during the countdown
@@ -232,10 +232,11 @@ class AirMission:
     waypoint: int = 0  # current waypoint index of the waypoint mission, 255 = the active mission is not the waypoint mission
     setpoint_pos: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m] guidance position setpoint, NWU, 1 mm resolution (as AIR_POSE.pos)
     setpoint_vel: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m/s] guidance velocity setpoint, NWU, +-327.66 m/s (as AIR_POSE.vel)
+    setpoint_q: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as AIR_POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(30)
+        b = bytearray(38)
         _rt.put(b, '<I', 0, self.t_us)
         _rt.put_fixed(b, '<i', 4, self.mission_time, 0.001, -2147483647, 2147483647, -2147483648)
         _rt.put(b, '<B', 8, self.mission_mode)
@@ -250,6 +251,10 @@ class AirMission:
             raise ValueError('setpoint_vel needs 3 elements')
         for i, v in enumerate(self.setpoint_vel):
             _rt.put_fixed(b, '<h', 24 + i * 2, v, 0.01, -32767, 32767, -32768)
+        if len(self.setpoint_q) != 4:
+            raise ValueError('setpoint_q needs 4 elements')
+        for i, v in enumerate(self.setpoint_q):
+            _rt.put_fixed(b, '<h', 30 + i * 2, v, 3.051850947599719e-05, -32767, 32767, -32768)
         return bytes(b)
 
     @classmethod
@@ -267,6 +272,10 @@ class AirMission:
         t.waypoint = _rt.get(data, '<B', 11)
         t.setpoint_pos = [_rt.get_fixed(data, '<i', 12 + i * 4, 0.001, -2147483648) for i in range(3)]
         t.setpoint_vel = [_rt.get_fixed(data, '<h', 24 + i * 2, 0.01, -32768) for i in range(3)]
+        if len(data) >= 38:
+            t.setpoint_q = [_rt.get_fixed(data, '<h', 30 + i * 2, 3.051850947599719e-05, -32768) for i in range(4)]
+        else:
+            t.setpoint_q = [float('nan')] * 4
         return t
 
 
@@ -384,7 +393,7 @@ class Mission:
     AIR_ELIGIBLE: ClassVar[bool] = False
     AIR_RATE_HZ: ClassVar[int] = 0
     USB_RATE_HZ: ClassVar[int] = 20
-    MAX_SIZE: ClassVar[int] = 34
+    MAX_SIZE: ClassVar[int] = 50
     MIN_SIZE: ClassVar[int] = 34
     t_us: int = 0  # [us] 
     setpoint_pos: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m] 
@@ -392,10 +401,11 @@ class Mission:
     mission_time: float = 0.0  # [s] 
     index: int = 0
     phase: int = 0
+    setpoint_q: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(34)
+        b = bytearray(50)
         _rt.put(b, '<I', 0, self.t_us)
         if len(self.setpoint_pos) != 3:
             raise ValueError('setpoint_pos needs 3 elements')
@@ -408,6 +418,10 @@ class Mission:
         _rt.put_fixed(b, '<i', 28, self.mission_time, 0.001, -2147483647, 2147483647, -2147483648)
         _rt.put(b, '<B', 32, self.index)
         _rt.put(b, '<B', 33, self.phase)
+        if len(self.setpoint_q) != 4:
+            raise ValueError('setpoint_q needs 4 elements')
+        for i, v in enumerate(self.setpoint_q):
+            _rt.put_f32(b, 34 + i * 4, v)
         return bytes(b)
 
     @classmethod
@@ -423,6 +437,10 @@ class Mission:
         t.mission_time = _rt.get_fixed(data, '<i', 28, 0.001, -2147483648)
         t.index = _rt.get(data, '<B', 32)
         t.phase = _rt.get(data, '<B', 33)
+        if len(data) >= 50:
+            t.setpoint_q = [_rt.get(data, '<f', 34 + i * 4) for i in range(4)]
+        else:
+            t.setpoint_q = [float('nan')] * 4
         return t
 
 

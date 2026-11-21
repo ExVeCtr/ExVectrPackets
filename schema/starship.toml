@@ -100,6 +100,7 @@ fields = [
   { name = "waypoint",     type = "u8", doc = "current waypoint index of the waypoint mission, 255 = the active mission is not the waypoint mission" },
   { name = "setpoint_pos", type = "fixed", wire = "i32", scale = 0.001, count = 3, unit = "m", doc = "guidance position setpoint, NWU, 1 mm resolution (as AIR_POSE.pos)" },
   { name = "setpoint_vel", type = "fixed", wire = "i16", scale = 0.01, count = 3, unit = "m/s", doc = "guidance velocity setpoint, NWU, +-327.66 m/s (as AIR_POSE.vel)" },
+  { name = "setpoint_q",   type = "fixed", wire = "i16", limit = 1.0, count = 4, optional = true, doc = "attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as AIR_POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint" },
 ]
 
 # ---------------------------------------------------------------- USB set
@@ -145,6 +146,7 @@ fields = [
   { name = "mission_time", type = "fixed", wire = "i32", scale = 0.001, unit = "s" },
   { name = "index",        type = "u8" },
   { name = "phase",        type = "u8" },
+  { name = "setpoint_q",   type = "f32", count = 4, optional = true, doc = "attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint" },
 ]
 
 [packet.GNSS]

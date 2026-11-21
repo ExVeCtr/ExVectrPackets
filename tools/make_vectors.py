@@ -104,18 +104,34 @@ aan = {"t_us": 1, "prev_age": NAN, "tvc": [0.0, 0.0, NAN, NAN], "roll_torque": [
 case("air_actuators_no_previous", "AIR_ACTUATORS", aan,
      P("IH4h2h2H8h", 1, 65535, 0, 0, -32768, -32768, 0, -32768, 1000, 65535, *([5000] * 4), *([-32768] * 4)))
 amv = {"t_us": 77, "mission_time": -9.5, "mission_mode": 1, "phase": 1, "index": 1, "waypoint": 255,
-       "setpoint_pos": [0.0, -0.001, 120.0], "setpoint_vel": [0.0, 0.5, 7.0]}
-case("air_mission", "AIR_MISSION", amv, P("IiBBBB3i3h", 77, -9500, 1, 1, 1, 255, 0, -1, 120000, 0, 50, 700),
+       "setpoint_pos": [0.0, -0.001, 120.0], "setpoint_vel": [0.0, 0.5, 7.0], "setpoint_q": [0.0, 0.0, 0.0, 0.0]}
+case("air_mission", "AIR_MISSION", amv,
+     P("IiBBBB3i3h4h", 77, -9500, 1, 1, 1, 255, 0, -1, 120000, 0, 50, 700, 0, 0, 0, 0),
      {**amv, "mission_time": -9500 * 0.001, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
       "setpoint_vel": [0.0, 50 * 0.01, 700 * 0.01]})
+# attitude setpoint present: q = [0.5, 0.5, -0.5, 0.5] (unit), i16 limit 1.0 -> raw = round(v * 32767)
+amq = {**amv, "mission_mode": 2, "phase": 2, "waypoint": 3, "setpoint_q": [0.5, 0.5, -0.5, 0.5]}
+case("air_mission_attitude_setpoint", "AIR_MISSION", amq,
+     P("IiBBBB3i3h4h", 77, -9500, 2, 2, 1, 3, 0, -1, 120000, 0, 50, 700, 16384, 16384, -16384, 16384),
+     {**amq, "mission_time": -9500 * 0.001, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
+      "setpoint_vel": [0.0, 50 * 0.01, 700 * 0.01], "setpoint_q": [r / 32767 for r in (16384, 16384, -16384, 16384)]})
 pv = {"t_us": 5, "omega": [0.5, -0.25, 1.0], "q": [1.0, 0.0, 0.0, -0.5], "vel": [1.5, 2.5, -3.5], "pos": [10.0, -20.0, 30.5]}
 case("pose", "POSE", pv, P("I3f4f3f3f", 5, *pv["omega"], *pv["q"], *pv["vel"], *pv["pos"]))
 av = {"t_us": 6, "flaps": [0.0, 0.25, 1.5, 0.75], "tvc": [0.125, -0.125], "thrust": 12.5, "ground_distance": NAN}
 case("actuators_no_ground", "ACTUATORS", av,
      P("I4f2fff", 6, *av["flaps"], *av["tvc"], 12.5, float("nan")))
-mv = {"t_us": 7, "setpoint_pos": [1.0, 2.0, 3.0], "setpoint_vel": [0.0, 0.5, -0.5], "mission_time": 12.345, "index": 4, "phase": 2}
-case("mission", "MISSION", mv, P("I3f3fiBB", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2),
+mv = {"t_us": 7, "setpoint_pos": [1.0, 2.0, 3.0], "setpoint_vel": [0.0, 0.5, -0.5], "mission_time": 12.345, "index": 4, "phase": 2,
+      "setpoint_q": [0.5, -0.5, 0.5, -0.5]}
+case("mission", "MISSION", mv, P("I3f3fiBB4f", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5),
      {**mv, "mission_time": 12345 * 0.001})
+# older sender (before setpoint_q was appended): the optional tail decodes as NaN (= unknown, no setpoint)
+decode_only.append({"name": "mission_older_sender_no_setpoint_q", "packet": "MISSION",
+                    "hex": hexs(P("I3f3fiBB", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2)),
+                    "decoded": {**mv, "mission_time": 12345 * 0.001, "setpoint_q": [NAN] * 4}})
+decode_only.append({"name": "air_mission_older_sender_no_setpoint_q", "packet": "AIR_MISSION",
+                    "hex": hexs(P("IiBBBB3i3h", 77, -9500, 1, 1, 1, 255, 0, -1, 120000, 0, 50, 700)),
+                    "decoded": {**amv, "mission_time": -9500 * 0.001, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
+                                "setpoint_vel": [0.0, 50 * 0.01, 700 * 0.01], "setpoint_q": [NAN] * 4}})
 gv = {"t_us": 8, "latitude": 0.8272, "longitude": 0.149, "altitude": 512.5, "vel": [0.5, 0.25, -1.0],
       "satellites": 14, "fix_type": 3, "h_acc": 1.5, "v_acc": 2.5, "s_acc": 0.25}
 case("gnss", "GNSS", gv, P("Iddf3fBBfff", 8, 0.8272, 0.149, 512.5, 0.5, 0.25, -1.0, 14, 3, 1.5, 2.5, 0.25))

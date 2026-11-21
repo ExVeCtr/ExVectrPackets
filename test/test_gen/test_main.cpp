@@ -377,7 +377,8 @@ static void test_metadata_constants() {
     TEST_ASSERT_EQUAL_UINT16(25, AirActuators::kAirRateHz);
     TEST_ASSERT_EQUAL_UINT16(0, AirActuators::kUsbRateHz);
     TEST_ASSERT_TRUE(AirMission::kAirEligible);
-    TEST_ASSERT_EQUAL(30, AirMission::kMaxSize);
+    TEST_ASSERT_EQUAL(38, AirMission::kMaxSize);
+    TEST_ASSERT_EQUAL(30, AirMission::kMinSize);
     TEST_ASSERT_EQUAL_UINT16(5, AirMission::kAirRateHz);
     // every air-eligible packet fits the radio budget: < 2150 B/s including 7 bytes overhead, i.e. below 35 % of the
     // 6150 B/s air downlink entry capacity (was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION)
