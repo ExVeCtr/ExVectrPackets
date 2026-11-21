@@ -43,7 +43,7 @@ class VehicleStatus:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 5
     USB_RATE_HZ: ClassVar[int] = 20
-    MAX_SIZE: ClassVar[int] = 28
+    MAX_SIZE: ClassVar[int] = 29
     MIN_SIZE: ClassVar[int] = 28
     FLAGS_ARMED: ClassVar[int] = 1
     FLAGS_SIMULATION: ClassVar[int] = 2
@@ -65,10 +65,11 @@ class VehicleStatus:
     last_req_id: int = 0  # last executed REQUEST id, 0 = none
     last_req_status: int = 0  # RequestStatus value of last_req_id
     rc_age: float = 0.0  # [s] age of the last accepted RC_STATE, invalid (NaN) = none
+    home_epoch: int = 0  # increments whenever the home reference (HOME_POSITION) changes; the GS requests HOME_POSITION again when it changes. 0 = no home yet. Missing (older sender) decodes as 0
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(28)
+        b = bytearray(29)
         _rt.put(b, '<I', 0, self.t_us)
         _rt.put(b, '<q', 4, self.t_ns)
         _rt.put(b, '<B', 12, self.mode)
@@ -81,6 +82,7 @@ class VehicleStatus:
         _rt.put(b, '<H', 23, self.last_req_id)
         _rt.put(b, '<B', 25, self.last_req_status)
         _rt.put_fixed(b, '<H', 26, self.rc_age, 0.001, 0, 65534, 65535)
+        _rt.put(b, '<B', 28, self.home_epoch)
         return bytes(b)
 
     @classmethod
@@ -102,6 +104,10 @@ class VehicleStatus:
         t.last_req_id = _rt.get(data, '<H', 23)
         t.last_req_status = _rt.get(data, '<B', 25)
         t.rc_age = _rt.get_fixed(data, '<H', 26, 0.001, 65535)
+        if len(data) >= 29:
+            t.home_epoch = _rt.get(data, '<B', 28)
+        else:
+            t.home_epoch = 0
         return t
 
 
@@ -281,7 +287,7 @@ class AirMission:
 
 @dataclasses.dataclass
 class AirGnss:
-    """GNSS solution for the radio, the air version of GNSS (same source values, same datum), fixed-point. Purpose: verify the barometric/estimated altitude during descent, so altitude and vertical speed are included; the 3D velocity vector is reduced to ground speed and vertical speed. fix_type and satellites are as GNSS."""
+    """GNSS position and velocity for the radio at 10 Hz, the air version of GNSS (same source values), fixed-point. Purpose: verify the barometric/estimated altitude during descent. Fix type, satellites and accuracy are in AIR_GNSS_INFO at 1 Hz. The u-blox driver provides the NED velocity vector, so the full velocity is sent, converted to NWU as in GNSS.vel."""
     PORT: ClassVar[Optional[int]] = 0x24
     IS_HEARTBEAT: ClassVar[bool] = False
     QOS: ClassVar[int] = 3  # telemetry
@@ -289,32 +295,25 @@ class AirGnss:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 10
     USB_RATE_HZ: ClassVar[int] = 0
-    MAX_SIZE: ClassVar[int] = 26
-    MIN_SIZE: ClassVar[int] = 26
+    MAX_SIZE: ClassVar[int] = 22
+    MIN_SIZE: ClassVar[int] = 22
     t_us: int = 0  # [us] 
     latitude: float = 0.0  # [rad] wire: deg * 1e7 (1.1 cm), +-214.7 deg, NaN = no fix
     longitude: float = 0.0  # [rad] wire: deg * 1e7 (1.1 cm at the equator), +-214.7 deg, NaN = no fix
-    altitude: float = 0.0  # [m] as GNSS.altitude (height above the ellipsoid), 1 mm resolution
-    fix_type: int = 0  # as GNSS.fix_type
-    satellites: int = 0
-    h_acc: float = 0.0  # [m] horizontal accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
-    v_acc: float = 0.0  # [m] vertical accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
-    ground_speed: float = 0.0  # [m/s] horizontal speed over ground = hypot(GNSS.vel[0], GNSS.vel[1]), 0..655.34 m/s, 65535 = unknown (NaN)
-    vert_speed: float = 0.0  # [m/s] vertical speed, positive UP (NWU: GNSS.vel[2]), +-327.66 m/s, -32768 = unknown (NaN)
+    altitude: float = 0.0  # [m] as GNSS.altitude, 1 mm resolution
+    vel: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m/s] NWU (as GNSS.vel and AIR_POSE.vel), +-327.66 m/s, NaN = unknown
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(26)
+        b = bytearray(22)
         _rt.put(b, '<I', 0, self.t_us)
         _rt.put_fixed(b, '<i', 4, self.latitude, 1.7453292519943295e-09, -2147483647, 2147483647, -2147483648)
         _rt.put_fixed(b, '<i', 8, self.longitude, 1.7453292519943295e-09, -2147483647, 2147483647, -2147483648)
         _rt.put_fixed(b, '<i', 12, self.altitude, 0.001, -2147483647, 2147483647, -2147483648)
-        _rt.put(b, '<B', 16, self.fix_type)
-        _rt.put(b, '<B', 17, self.satellites)
-        _rt.put_fixed(b, '<H', 18, self.h_acc, 0.01, 0, 65534, 65535)
-        _rt.put_fixed(b, '<H', 20, self.v_acc, 0.01, 0, 65534, 65535)
-        _rt.put_fixed(b, '<H', 22, self.ground_speed, 0.01, 0, 65534, 65535)
-        _rt.put_fixed(b, '<h', 24, self.vert_speed, 0.01, -32767, 32767, -32768)
+        if len(self.vel) != 3:
+            raise ValueError('vel needs 3 elements')
+        for i, v in enumerate(self.vel):
+            _rt.put_fixed(b, '<h', 16 + i * 2, v, 0.01, -32767, 32767, -32768)
         return bytes(b)
 
     @classmethod
@@ -322,18 +321,56 @@ class AirGnss:
         """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
         data = bytes(data)
         if len(data) < cls.MIN_SIZE:
-            raise ValueError('AIR_GNSS: payload too short (%d < 26)' % len(data))
+            raise ValueError('AIR_GNSS: payload too short (%d < 22)' % len(data))
         t = cls()
         t.t_us = _rt.get(data, '<I', 0)
         t.latitude = _rt.get_fixed(data, '<i', 4, 1.7453292519943295e-09, -2147483648)
         t.longitude = _rt.get_fixed(data, '<i', 8, 1.7453292519943295e-09, -2147483648)
         t.altitude = _rt.get_fixed(data, '<i', 12, 0.001, -2147483648)
-        t.fix_type = _rt.get(data, '<B', 16)
-        t.satellites = _rt.get(data, '<B', 17)
-        t.h_acc = _rt.get_fixed(data, '<H', 18, 0.01, 65535)
-        t.v_acc = _rt.get_fixed(data, '<H', 20, 0.01, 65535)
-        t.ground_speed = _rt.get_fixed(data, '<H', 22, 0.01, 65535)
-        t.vert_speed = _rt.get_fixed(data, '<h', 24, 0.01, -32768)
+        t.vel = [_rt.get_fixed(data, '<h', 16 + i * 2, 0.01, -32768) for i in range(3)]
+        return t
+
+
+@dataclasses.dataclass
+class AirGnssInfo:
+    """GNSS status and accuracy for the radio at 1 Hz (companion of AIR_GNSS, same source values as GNSS)."""
+    PORT: ClassVar[Optional[int]] = 0x25
+    IS_HEARTBEAT: ClassVar[bool] = False
+    QOS: ClassVar[int] = 3  # telemetry
+    LATEST: ClassVar[bool] = True
+    AIR_ELIGIBLE: ClassVar[bool] = True
+    AIR_RATE_HZ: ClassVar[int] = 1
+    USB_RATE_HZ: ClassVar[int] = 0
+    MAX_SIZE: ClassVar[int] = 10
+    MIN_SIZE: ClassVar[int] = 10
+    t_us: int = 0  # [us] 
+    fix_type: int = 0  # as GNSS.fix_type
+    satellites: int = 0
+    h_acc: float = 0.0  # [m] horizontal accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
+    v_acc: float = 0.0  # [m] vertical accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
+
+    def encode(self) -> bytes:
+        """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
+        b = bytearray(10)
+        _rt.put(b, '<I', 0, self.t_us)
+        _rt.put(b, '<B', 4, self.fix_type)
+        _rt.put(b, '<B', 5, self.satellites)
+        _rt.put_fixed(b, '<H', 6, self.h_acc, 0.01, 0, 65534, 65535)
+        _rt.put_fixed(b, '<H', 8, self.v_acc, 0.01, 0, 65534, 65535)
+        return bytes(b)
+
+    @classmethod
+    def decode(cls, data) -> "AirGnssInfo":
+        """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
+        data = bytes(data)
+        if len(data) < cls.MIN_SIZE:
+            raise ValueError('AIR_GNSS_INFO: payload too short (%d < 10)' % len(data))
+        t = cls()
+        t.t_us = _rt.get(data, '<I', 0)
+        t.fix_type = _rt.get(data, '<B', 4)
+        t.satellites = _rt.get(data, '<B', 5)
+        t.h_acc = _rt.get_fixed(data, '<H', 6, 0.01, 65535)
+        t.v_acc = _rt.get_fixed(data, '<H', 8, 0.01, 65535)
         return t
 
 

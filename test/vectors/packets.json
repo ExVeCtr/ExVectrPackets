@@ -265,9 +265,10 @@
     "sensor_state": 341,
     "last_req_id": 258,
     "last_req_status": 0,
-    "rc_age": 0.02
+    "rc_age": 0.02,
+    "home_epoch": 2
    },
-   "hex": "00286bee7b409452a303000003020501070100008055010201001400",
+   "hex": "00286bee7b409452a30300000302050107010000805501020100140002",
    "decoded": {
     "t_us": 4000000000,
     "t_ns": 4000000000123,
@@ -280,7 +281,8 @@
     "sensor_state": 341,
     "last_req_id": 258,
     "last_req_status": 0,
-    "rc_age": 0.02
+    "rc_age": 0.02,
+    "home_epoch": 2
    }
   },
   {
@@ -298,9 +300,10 @@
     "sensor_state": 341,
     "last_req_id": 258,
     "last_req_status": 0,
-    "rc_age": null
+    "rc_age": null,
+    "home_epoch": 2
    },
-   "hex": "00286bee7b409452a30300000302050107010000805501020100ffff"
+   "hex": "00286bee7b409452a30300000302050107010000805501020100ffff02"
   },
   {
    "name": "air_pose",
@@ -653,25 +656,23 @@
     "latitude": 0.8272466559108022,
     "longitude": 0.1491487518386723,
     "altitude": 1234.567,
-    "fix_type": 3,
-    "satellites": 14,
-    "h_acc": 1.23,
-    "v_acc": 2.5,
-    "ground_speed": 12.34,
-    "vert_speed": -45.67
+    "vel": [
+     1.25,
+     -0.5,
+     -45.67
+    ]
    },
-   "hex": "1f0000004c52401c44f4170587d61200030e7b00fa00d20429ee",
+   "hex": "1f0000004c52401c44f4170587d612007d00ceff29ee",
    "decoded": {
     "t_us": 31,
     "latitude": 0.8272466559108022,
     "longitude": 0.1491487518386723,
     "altitude": 1234.567,
-    "fix_type": 3,
-    "satellites": 14,
-    "h_acc": 1.23,
-    "v_acc": 2.5,
-    "ground_speed": 12.34,
-    "vert_speed": -45.67
+    "vel": [
+     1.25,
+     -0.5,
+     -45.67
+    ]
    }
   },
   {
@@ -682,14 +683,44 @@
     "latitude": null,
     "longitude": null,
     "altitude": null,
-    "fix_type": 0,
-    "satellites": 2,
-    "h_acc": null,
-    "v_acc": null,
-    "ground_speed": null,
-    "vert_speed": null
+    "vel": [
+     null,
+     null,
+     null
+    ]
    },
-   "hex": "200000000000008000000080000000800002ffffffffffff0080"
+   "hex": "20000000000000800000008000000080008000800080"
+  },
+  {
+   "name": "air_gnss_info",
+   "packet": "AIR_GNSS_INFO",
+   "values": {
+    "t_us": 33,
+    "fix_type": 3,
+    "satellites": 14,
+    "h_acc": 1.23,
+    "v_acc": 2.5
+   },
+   "hex": "21000000030e7b00fa00",
+   "decoded": {
+    "t_us": 33,
+    "fix_type": 3,
+    "satellites": 14,
+    "h_acc": 1.23,
+    "v_acc": 2.5
+   }
+  },
+  {
+   "name": "air_gnss_info_unknown",
+   "packet": "AIR_GNSS_INFO",
+   "values": {
+    "t_us": 34,
+    "fix_type": 0,
+    "satellites": 0,
+    "h_acc": null,
+    "v_acc": null
+   },
+   "hex": "220000000000ffffffff"
   },
   {
    "name": "home_position",
@@ -2619,6 +2650,26 @@
   }
  ],
  "decode_only": [
+  {
+   "name": "vehicle_status_older_sender_no_home_epoch",
+   "packet": "VEHICLE_STATUS",
+   "hex": "00286bee7b409452a303000003020501070100008055010201001400",
+   "decoded": {
+    "t_us": 4000000000,
+    "t_ns": 4000000000123,
+    "mode": 3,
+    "mission_mode": 2,
+    "mission_phase": 5,
+    "ctrl_source": 1,
+    "flags": 7,
+    "failure_bits": 2147483649,
+    "sensor_state": 341,
+    "last_req_id": 258,
+    "last_req_status": 0,
+    "rc_age": 0.02,
+    "home_epoch": 0
+   }
+  },
   {
    "name": "mission_older_sender_no_setpoint_q",
    "packet": "MISSION",

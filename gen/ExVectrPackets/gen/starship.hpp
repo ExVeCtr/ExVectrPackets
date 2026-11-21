@@ -43,7 +43,7 @@ struct VehicleStatus {
     static constexpr bool kAirEligible = true;
     static constexpr uint16_t kAirRateHz = 5;
     static constexpr uint16_t kUsbRateHz = 20;
-    static constexpr size_t kMaxSize = 28;
+    static constexpr size_t kMaxSize = 29;
     static constexpr size_t kMinSize = 28;
     static constexpr uint8_t kFlagsArmed = uint8_t(1u << 0);
     static constexpr uint8_t kFlagsSimulation = uint8_t(1u << 1);
@@ -66,10 +66,11 @@ struct VehicleStatus {
     uint16_t last_req_id = {}; // last executed REQUEST id, 0 = none
     uint8_t last_req_status = {}; // RequestStatus value of last_req_id
     float rc_age = {}; // [s] age of the last accepted RC_STATE, invalid (NaN) = none
+    uint8_t home_epoch = {}; // increments whenever the home reference (HOME_POSITION) changes; the GS requests HOME_POSITION again when it changes. 0 = no home yet. Missing (older sender) decodes as 0
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 28;
+        constexpr size_t total = 29;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         codec::put_i64(out + 4, t_ns);
@@ -83,6 +84,7 @@ struct VehicleStatus {
         codec::put_u16(out + 23, last_req_id);
         codec::put_u8(out + 25, last_req_status);
         codec::put_u16(out + 26, static_cast<uint16_t>(codec::fixedEncode(rc_age, 0.001, 0LL, 65534LL, 65535LL)));
+        codec::put_u8(out + 28, home_epoch);
         return total;
     }
 
@@ -103,6 +105,11 @@ struct VehicleStatus {
         t.last_req_id = codec::get_u16(in + 23);
         t.last_req_status = codec::get_u8(in + 25);
         t.rc_age = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 26), 0.001, 65535LL));
+        if (len >= 29) {
+            t.home_epoch = codec::get_u8(in + 28);
+        } else {
+            t.home_epoch = 0;
+        }
         *this = t;
         return true;
     }
@@ -122,6 +129,7 @@ struct VehicleStatus {
         v.scalar("last_req_id", last_req_id);
         v.scalar("last_req_status", last_req_status);
         v.scalar("rc_age", rc_age);
+        v.scalar("home_epoch", home_epoch);
         (void)v;
     }
 };
@@ -314,7 +322,7 @@ struct AirMission {
     }
 };
 
-/// GNSS solution for the radio, the air version of GNSS (same source values, same datum), fixed-point. Purpose: verify the barometric/estimated altitude during descent, so altitude and vertical speed are included; the 3D velocity vector is reduced to ground speed and vertical speed. fix_type and satellites are as GNSS.
+/// GNSS position and velocity for the radio at 10 Hz, the air version of GNSS (same source values), fixed-point. Purpose: verify the barometric/estimated altitude during descent. Fix type, satellites and accuracy are in AIR_GNSS_INFO at 1 Hz. The u-blox driver provides the NED velocity vector, so the full velocity is sent, converted to NWU as in GNSS.vel.
 struct AirGnss {
     static constexpr uint8_t kPort = 0x24;
     static constexpr bool kIsHeartbeat = false;
@@ -323,34 +331,24 @@ struct AirGnss {
     static constexpr bool kAirEligible = true;
     static constexpr uint16_t kAirRateHz = 10;
     static constexpr uint16_t kUsbRateHz = 0;
-    static constexpr size_t kMaxSize = 26;
-    static constexpr size_t kMinSize = 26;
+    static constexpr size_t kMaxSize = 22;
+    static constexpr size_t kMinSize = 22;
 
     uint32_t t_us = {}; // [us] 
     double latitude = {}; // [rad] wire: deg * 1e7 (1.1 cm), +-214.7 deg, NaN = no fix
     double longitude = {}; // [rad] wire: deg * 1e7 (1.1 cm at the equator), +-214.7 deg, NaN = no fix
-    float altitude = {}; // [m] as GNSS.altitude (height above the ellipsoid), 1 mm resolution
-    uint8_t fix_type = {}; // as GNSS.fix_type
-    uint8_t satellites = {};
-    float h_acc = {}; // [m] horizontal accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
-    float v_acc = {}; // [m] vertical accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
-    float ground_speed = {}; // [m/s] horizontal speed over ground = hypot(GNSS.vel[0], GNSS.vel[1]), 0..655.34 m/s, 65535 = unknown (NaN)
-    float vert_speed = {}; // [m/s] vertical speed, positive UP (NWU: GNSS.vel[2]), +-327.66 m/s, -32768 = unknown (NaN)
+    float altitude = {}; // [m] as GNSS.altitude, 1 mm resolution
+    float vel[3] = {}; // [m/s] NWU (as GNSS.vel and AIR_POSE.vel), +-327.66 m/s, NaN = unknown
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 26;
+        constexpr size_t total = 22;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         codec::put_i32(out + 4, static_cast<int32_t>(codec::fixedEncode(latitude, 1.7453292519943295e-09, -2147483647LL, 2147483647LL, -2147483648LL)));
         codec::put_i32(out + 8, static_cast<int32_t>(codec::fixedEncode(longitude, 1.7453292519943295e-09, -2147483647LL, 2147483647LL, -2147483648LL)));
         codec::put_i32(out + 12, static_cast<int32_t>(codec::fixedEncode(altitude, 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
-        codec::put_u8(out + 16, fix_type);
-        codec::put_u8(out + 17, satellites);
-        codec::put_u16(out + 18, static_cast<uint16_t>(codec::fixedEncode(h_acc, 0.01, 0LL, 65534LL, 65535LL)));
-        codec::put_u16(out + 20, static_cast<uint16_t>(codec::fixedEncode(v_acc, 0.01, 0LL, 65534LL, 65535LL)));
-        codec::put_u16(out + 22, static_cast<uint16_t>(codec::fixedEncode(ground_speed, 0.01, 0LL, 65534LL, 65535LL)));
-        codec::put_i16(out + 24, static_cast<int16_t>(codec::fixedEncode(vert_speed, 0.01, -32767LL, 32767LL, -32768LL)));
+        for (size_t i = 0; i < 3; ++i) codec::put_i16(out + 16 + i * 2, static_cast<int16_t>(codec::fixedEncode(vel[i], 0.01, -32767LL, 32767LL, -32768LL)));
         return total;
     }
 
@@ -363,12 +361,7 @@ struct AirGnss {
         t.latitude = static_cast<double>(codec::fixedDecode(codec::get_i32(in + 4), 1.7453292519943295e-09, -2147483648LL));
         t.longitude = static_cast<double>(codec::fixedDecode(codec::get_i32(in + 8), 1.7453292519943295e-09, -2147483648LL));
         t.altitude = static_cast<float>(codec::fixedDecode(codec::get_i32(in + 12), 0.001, -2147483648LL));
-        t.fix_type = codec::get_u8(in + 16);
-        t.satellites = codec::get_u8(in + 17);
-        t.h_acc = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 18), 0.01, 65535LL));
-        t.v_acc = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 20), 0.01, 65535LL));
-        t.ground_speed = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 22), 0.01, 65535LL));
-        t.vert_speed = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 24), 0.01, -32768LL));
+        for (size_t i = 0; i < 3; ++i) t.vel[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 16 + i * 2), 0.01, -32768LL));
         *this = t;
         return true;
     }
@@ -380,12 +373,63 @@ struct AirGnss {
         v.scalar("latitude", latitude);
         v.scalar("longitude", longitude);
         v.scalar("altitude", altitude);
+        v.array("vel", vel);
+        (void)v;
+    }
+};
+
+/// GNSS status and accuracy for the radio at 1 Hz (companion of AIR_GNSS, same source values as GNSS).
+struct AirGnssInfo {
+    static constexpr uint8_t kPort = 0x25;
+    static constexpr bool kIsHeartbeat = false;
+    static constexpr uint8_t kQos = 3; // telemetry (Control 0, Link 1, Event 2, Telemetry 3)
+    static constexpr bool kLatest = true;
+    static constexpr bool kAirEligible = true;
+    static constexpr uint16_t kAirRateHz = 1;
+    static constexpr uint16_t kUsbRateHz = 0;
+    static constexpr size_t kMaxSize = 10;
+    static constexpr size_t kMinSize = 10;
+
+    uint32_t t_us = {}; // [us] 
+    uint8_t fix_type = {}; // as GNSS.fix_type
+    uint8_t satellites = {};
+    float h_acc = {}; // [m] horizontal accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
+    float v_acc = {}; // [m] vertical accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
+
+    /// Bytes written, 0 on failure (null buffer or too small).
+    size_t encode(uint8_t* out, size_t cap) const {
+        constexpr size_t total = 10;
+        if (out == nullptr || cap < total) return 0;
+        codec::put_u32(out + 0, t_us);
+        codec::put_u8(out + 4, fix_type);
+        codec::put_u8(out + 5, satellites);
+        codec::put_u16(out + 6, static_cast<uint16_t>(codec::fixedEncode(h_acc, 0.01, 0LL, 65534LL, 65535LL)));
+        codec::put_u16(out + 8, static_cast<uint16_t>(codec::fixedEncode(v_acc, 0.01, 0LL, 65534LL, 65535LL)));
+        return total;
+    }
+
+    /// False if the payload is shorter than kMinSize (or a tail is too long). Longer payloads are accepted (extra
+    /// bytes ignored); optional fields missing from shorter payloads get their default/NaN.
+    bool decode(const uint8_t* in, size_t len) {
+        if (in == nullptr || len < kMinSize) return false;
+        AirGnssInfo t;
+        t.t_us = codec::get_u32(in + 0);
+        t.fix_type = codec::get_u8(in + 4);
+        t.satellites = codec::get_u8(in + 5);
+        t.h_acc = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 6), 0.01, 65535LL));
+        t.v_acc = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 8), 0.01, 65535LL));
+        *this = t;
+        return true;
+    }
+
+    /// Calls v.scalar/array/chars/tail(name, member) for every field (used by tests and tooling).
+    template <class V>
+    void visit(V& v) {
+        v.scalar("t_us", t_us);
         v.scalar("fix_type", fix_type);
         v.scalar("satellites", satellites);
         v.scalar("h_acc", h_acc);
         v.scalar("v_acc", v_acc);
-        v.scalar("ground_speed", ground_speed);
-        v.scalar("vert_speed", vert_speed);
         (void)v;
     }
 };

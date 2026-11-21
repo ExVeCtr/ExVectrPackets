@@ -6,19 +6,20 @@ Design 3.5.6 as adapted by the user decisions in the Revision 1 box of `docs/net
 
 | Packet | Port | Bytes | Air Hz | B/s incl. 7 B overhead |
 |---|---|---|---|---|
-| `VEHICLE_STATUS` (slow class: mode, mission, applied arm state, motor gate, control source, failure bits, sensors, last request, rc age) | 0x20 | 28 | 5 | 175 |
+| `VEHICLE_STATUS` (slow class: mode, mission, applied arm state, motor gate, control source, failure bits, sensors, last request, rc age, home epoch) | 0x20 | 29 | 5 | 180 |
 | `AIR_POSE` (q i16, position i32 at 1 mm, velocity i16 at 0.01 m/s) | 0x21 | 30 | 10 | 370 |
 | `AIR_ACTUATORS` (two actuator samples per packet, 20 ms apart: TVC deflection, roll torque, thrust, flaps; i16/u16 fixed) | 0x22 | 38 | 25 | 1125 |
 | `AIR_MISSION` (mission time, mode, phase, index, waypoint, position/velocity setpoint, attitude setpoint q, fixed) | 0x23 | 38 | 5 | 225 |
-| `AIR_GNSS` (lat/lon i32 at 1e-7 deg, altitude i32 mm, fix, satellites, h/v accuracy u16 cm, ground and vertical speed i16/u16 cm/s) | 0x24 | 26 | 10 | 330 |
+| `AIR_GNSS` (lat/lon i32 at 1e-7 deg, altitude i32 mm, NWU velocity i16 x3 at 0.01 m/s) | 0x24 | 22 | 10 | 290 |
+| `AIR_GNSS_INFO` (fix type, satellites, h/v accuracy u16 cm) | 0x25 | 10 | 1 | 17 |
 | `HANDSET_TELEM` | 0x03 | 34 | 2 | 82 |
 | `LINK_STATS` (from node 3) | 0x01 | 19 | 2 | 52 |
 | heartbeats (nodes 1 and 3) | - | 11 | 1 | 36 |
-| **Total** | | | | **about 2.40 kB/s** (air downlink entry capacity: 6.15 kB/s; workspace `tools/network_budget.py` counts LINK_STATS at 5 Hz: 2.47 kB/s, 40 %; it was 2.14 kB/s, 35 %, before `AIR_GNSS`) |
+| **Total** | | | | **about 2.42 kB/s** (air downlink entry capacity: 6.15 kB/s; workspace `tools/network_budget.py` counts LINK_STATS at 5 Hz: 2.45 kB/s, 40 %; it was 2.14 kB/s, 35 %, before `AIR_GNSS`) |
 
-`GNSS`, `ACTUATORS`, `MISSION` and the raw/debug packets are not on the radio; `AIR_ACTUATORS`, `AIR_MISSION` and `AIR_GNSS` are their air versions. `HANDSET_TELEM` already carries position, speed and attitude for the Pocket display. A test checks that the air set stays below 2500 B/s (41 % of the air downlink; the limit was 1.2 kB/s before `AIR_ACTUATORS` and `AIR_MISSION`, 2150 B/s before `AIR_GNSS`).
+`GNSS`, `ACTUATORS`, `MISSION` and the raw/debug packets are not on the radio; `AIR_ACTUATORS`, `AIR_MISSION` and `AIR_GNSS` (+ `AIR_GNSS_INFO`) are their air versions. `HANDSET_TELEM` already carries position, speed and attitude for the Pocket display. A test checks that the air set stays below 2500 B/s (41 % of the air downlink; the limit was 1.2 kB/s before `AIR_ACTUATORS` and `AIR_MISSION`, 2150 B/s before `AIR_GNSS`).
 
-`AIR_GNSS` (2026-11-21, H1): the GNSS solution at 10 Hz for verifying the barometric/estimated altitude during descent. Altitude is the receiver driver's height above the WGS-84 ellipsoid (as `GNSS.altitude`), so compare changes or values relative to the pad. Accuracy and speed fields use `u16`/`i16` with a sentinel (NaN = unknown). `HOME_POSITION` (0x50) is not a stream: it is the response object of a request channel (workspace `docs/reliable-transport-design.md` 8.1), see `docs/packet-reference.md`.
+`AIR_GNSS` (2026-11-21, H1): GNSS position and the full NWU velocity at 10 Hz for verifying the barometric/estimated altitude during descent; fix type, satellites and h/v accuracy are in `AIR_GNSS_INFO` at 1 Hz (the split costs 307 B/s against 370 B/s for one 30 B packet at 10 Hz). Altitude is as `GNSS.altitude` (the driver's ellipsoid height; the datum does not matter for pad-relative use). Sentinel values decode as NaN. `HOME_POSITION` (0x50) is not a stream: it is the response object of a request channel (workspace `docs/reliable-transport-design.md` 8.1), see `docs/packet-reference.md`; `VEHICLE_STATUS.home_epoch` tells the GS when to request it again.
 
 `AIR_ACTUATORS` sampling: the vehicle takes one actuator sample every 20 ms (50 Hz) into a ring and sends the newest two at 25 Hz, on a sampling tick. 25 Hz is the most the air link can carry for one packet type (25 downlink air packets/s, each aggregator entry type at most once per air packet). The ground station turns each packet into two timestamped samples: `t_us` and `t_us - prev_age`. Array order is newest first: `tvc = [x, y, x_prev, y_prev]`, `roll_torque = [new, prev]`, `thrust = [new, prev]`, `flaps = [TL, TR, BL, BR, TL_prev, TR_prev, BL_prev, BR_prev]`. With no previous sample, `prev_age` and the previous values are NaN.
 

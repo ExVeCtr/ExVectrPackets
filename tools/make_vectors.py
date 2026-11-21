@@ -77,12 +77,16 @@ case("handset_telem_invalid_saturated", "HANDSET_TELEM",
 # ------------------------------------------------------------------ starship
 vs = {"t_us": 4000000000, "t_ns": 4000000000123, "mode": 3, "mission_mode": 2, "mission_phase": 5, "ctrl_source": 1,
       "flags": 0x07, "failure_bits": 0x80000001, "sensor_state": 0x0155, "last_req_id": 0x0102,
-      "last_req_status": 0, "rc_age": 0.02}
+      "last_req_status": 0, "rc_age": 0.02, "home_epoch": 2}
 case("vehicle_status", "VEHICLE_STATUS", vs,
-     P("IqBBBBBIHHBH", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20),
+     P("IqBBBBBIHHBHB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2),
      {**vs, "rc_age": 20 * 0.001})
 case("vehicle_status_no_rc", "VEHICLE_STATUS", {**vs, "rc_age": NAN},
-     P("IqBBBBBIHHBH", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 65535))
+     P("IqBBBBBIHHBHB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 65535, 2))
+# older sender (before home_epoch was appended): the optional tail decodes as 0
+decode_only.append({"name": "vehicle_status_older_sender_no_home_epoch", "packet": "VEHICLE_STATUS",
+                    "hex": hexs(P("IqBBBBBIHHBH", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20)),
+                    "decoded": {**vs, "rc_age": 20 * 0.001, "home_epoch": 0}})
 q = [32767, -32767, 0, 16384]
 pos = [100, -100, 1234567]  # mm, beyond the old i16 range
 vel = [-327, 0, 1]
@@ -135,18 +139,20 @@ decode_only.append({"name": "air_mission_older_sender_no_setpoint_q", "packet": 
 gv = {"t_us": 8, "latitude": 0.8272, "longitude": 0.149, "altitude": 512.5, "vel": [0.5, 0.25, -1.0],
       "satellites": 14, "fix_type": 3, "h_acc": 1.5, "v_acc": 2.5, "s_acc": 0.25}
 case("gnss", "GNSS", gv, P("Iddf3fBBfff", 8, 0.8272, 0.149, 512.5, 0.5, 0.25, -1.0, 14, 3, 1.5, 2.5, 0.25))
-# AIR_GNSS: lat/lon i32 deg*1e7, altitude i32 mm, fix u8, sats u8, h_acc/v_acc u16 cm, ground_speed u16 cm/s, vert_speed i16 cm/s
+# AIR_GNSS: lat/lon i32 deg*1e7, altitude i32 mm, vel i16 x3 cm/s (NWU). AIR_GNSS_INFO: fix u8, sats u8, h_acc/v_acc u16 cm
 ag_lat, ag_lon, ag_alt = 473977420, 85455940, 1234567
-agv = {"t_us": 31, "latitude": ag_lat * S_RAD7, "longitude": ag_lon * S_RAD7, "altitude": 1234.567, "fix_type": 3,
-       "satellites": 14, "h_acc": 1.23, "v_acc": 2.5, "ground_speed": 12.34, "vert_speed": -45.67}
-case("air_gnss", "AIR_GNSS", agv, P("IiiiBBHHHh", 31, ag_lat, ag_lon, ag_alt, 3, 14, 123, 250, 1234, -4567),
-     {**agv, "altitude": ag_alt * 0.001, "h_acc": 123 * 0.01, "v_acc": 250 * 0.01, "ground_speed": 1234 * 0.01,
-      "vert_speed": -4567 * 0.01})
-# no fix: every fixed field at its sentinel (i32 min, u16 max, i16 min) decodes to NaN
+agv = {"t_us": 31, "latitude": ag_lat * S_RAD7, "longitude": ag_lon * S_RAD7, "altitude": 1234.567,
+       "vel": [1.25, -0.5, -45.67]}
+case("air_gnss", "AIR_GNSS", agv, P("Iiii3h", 31, ag_lat, ag_lon, ag_alt, 125, -50, -4567),
+     {**agv, "altitude": ag_alt * 0.001, "vel": [125 * 0.01, -50 * 0.01, -4567 * 0.01]})
+# no fix: every fixed field at its sentinel (i32 min, i16 min) decodes to NaN
 case("air_gnss_no_fix", "AIR_GNSS",
-     {"t_us": 32, "latitude": NAN, "longitude": NAN, "altitude": NAN, "fix_type": 0, "satellites": 2, "h_acc": NAN,
-      "v_acc": NAN, "ground_speed": NAN, "vert_speed": NAN},
-     P("IiiiBBHHHh", 32, -2 ** 31, -2 ** 31, -2 ** 31, 0, 2, 65535, 65535, 65535, -32768))
+     {"t_us": 32, "latitude": NAN, "longitude": NAN, "altitude": NAN, "vel": [NAN, NAN, NAN]},
+     P("Iiii3h", 32, -2 ** 31, -2 ** 31, -2 ** 31, -32768, -32768, -32768))
+aiv = {"t_us": 33, "fix_type": 3, "satellites": 14, "h_acc": 1.23, "v_acc": 2.5}
+case("air_gnss_info", "AIR_GNSS_INFO", aiv, P("IBBHH", 33, 3, 14, 123, 250), {**aiv, "h_acc": 123 * 0.01, "v_acc": 250 * 0.01})
+case("air_gnss_info_unknown", "AIR_GNSS_INFO", {"t_us": 34, "fix_type": 0, "satellites": 0, "h_acc": NAN, "v_acc": NAN},
+     P("IBBHH", 34, 0, 0, 65535, 65535))
 # HOME_POSITION (response object of request channel 0x50): flags u8, lat/lon i32 deg*1e7, altitude i32 mm, h_acc u16 cm,
 # epoch u8, set_time i64 ns, reserved u8 = 25 bytes
 hpv = {"flags": 0x03, "latitude": ag_lat * S_RAD7, "longitude": ag_lon * S_RAD7, "altitude": 421.5, "h_acc": 0.85,

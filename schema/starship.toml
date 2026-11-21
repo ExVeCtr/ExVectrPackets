@@ -55,6 +55,7 @@ fields = [
   { name = "last_req_id",     type = "u16", doc = "last executed REQUEST id, 0 = none" },
   { name = "last_req_status", type = "u8", doc = "RequestStatus value of last_req_id" },
   { name = "rc_age",          type = "fixed", wire = "u16", scale = 0.001, unit = "s", doc = "age of the last accepted RC_STATE, invalid (NaN) = none" },
+  { name = "home_epoch",      type = "u8", optional = true, doc = "increments whenever the home reference (HOME_POSITION) changes; the GS requests HOME_POSITION again when it changes. 0 = no home yet. Missing (older sender) decodes as 0" },
 ]
 
 [packet.AIR_POSE]
@@ -108,18 +109,27 @@ port = 0x24
 qos = "telemetry"
 latest = true
 rate_air = 10
-doc = "GNSS solution for the radio, the air version of GNSS (same source values, same datum), fixed-point. Purpose: verify the barometric/estimated altitude during descent, so altitude and vertical speed are included; the 3D velocity vector is reduced to ground speed and vertical speed. fix_type and satellites are as GNSS."
+doc = "GNSS position and velocity for the radio at 10 Hz, the air version of GNSS (same source values), fixed-point. Purpose: verify the barometric/estimated altitude during descent. Fix type, satellites and accuracy are in AIR_GNSS_INFO at 1 Hz. The u-blox driver provides the NED velocity vector, so the full velocity is sent, converted to NWU as in GNSS.vel."
 fields = [
   { name = "t_us",       type = "u32", unit = "us" },
   { name = "latitude",   type = "fixed", wire = "i32", as = "f64", scale = 1.7453292519943295e-9, unit = "rad", doc = "wire: deg * 1e7 (1.1 cm), +-214.7 deg, NaN = no fix" },
   { name = "longitude",  type = "fixed", wire = "i32", as = "f64", scale = 1.7453292519943295e-9, unit = "rad", doc = "wire: deg * 1e7 (1.1 cm at the equator), +-214.7 deg, NaN = no fix" },
-  { name = "altitude",   type = "fixed", wire = "i32", scale = 0.001, unit = "m", doc = "as GNSS.altitude (height above the ellipsoid), 1 mm resolution" },
+  { name = "altitude",   type = "fixed", wire = "i32", scale = 0.001, unit = "m", doc = "as GNSS.altitude, 1 mm resolution" },
+  { name = "vel",        type = "fixed", wire = "i16", scale = 0.01, count = 3, unit = "m/s", doc = "NWU (as GNSS.vel and AIR_POSE.vel), +-327.66 m/s, NaN = unknown" },
+]
+
+[packet.AIR_GNSS_INFO]
+port = 0x25
+qos = "telemetry"
+latest = true
+rate_air = 1
+doc = "GNSS status and accuracy for the radio at 1 Hz (companion of AIR_GNSS, same source values as GNSS)."
+fields = [
+  { name = "t_us",       type = "u32", unit = "us" },
   { name = "fix_type",   type = "u8", doc = "as GNSS.fix_type" },
   { name = "satellites", type = "u8" },
   { name = "h_acc",      type = "fixed", wire = "u16", scale = 0.01, unit = "m", doc = "horizontal accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)" },
   { name = "v_acc",      type = "fixed", wire = "u16", scale = 0.01, unit = "m", doc = "vertical accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)" },
-  { name = "ground_speed", type = "fixed", wire = "u16", scale = 0.01, unit = "m/s", doc = "horizontal speed over ground = hypot(GNSS.vel[0], GNSS.vel[1]), 0..655.34 m/s, 65535 = unknown (NaN)" },
-  { name = "vert_speed", type = "fixed", wire = "i16", scale = 0.01, unit = "m/s", doc = "vertical speed, positive UP (NWU: GNSS.vel[2]), +-327.66 m/s, -32768 = unknown (NaN)" },
 ]
 
 # ---------------------------------------------------------------- USB set
