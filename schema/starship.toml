@@ -103,6 +103,25 @@ fields = [
   { name = "setpoint_q",   type = "fixed", wire = "i16", limit = 1.0, count = 4, optional = true, doc = "attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as AIR_POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint" },
 ]
 
+[packet.AIR_GNSS]
+port = 0x24
+qos = "telemetry"
+latest = true
+rate_air = 10
+doc = "GNSS solution for the radio, the air version of GNSS (same source values, same datum), fixed-point. Purpose: verify the barometric/estimated altitude during descent, so altitude and vertical speed are included; the 3D velocity vector is reduced to ground speed and vertical speed. fix_type and satellites are as GNSS."
+fields = [
+  { name = "t_us",       type = "u32", unit = "us" },
+  { name = "latitude",   type = "fixed", wire = "i32", as = "f64", scale = 1.7453292519943295e-9, unit = "rad", doc = "wire: deg * 1e7 (1.1 cm), +-214.7 deg, NaN = no fix" },
+  { name = "longitude",  type = "fixed", wire = "i32", as = "f64", scale = 1.7453292519943295e-9, unit = "rad", doc = "wire: deg * 1e7 (1.1 cm at the equator), +-214.7 deg, NaN = no fix" },
+  { name = "altitude",   type = "fixed", wire = "i32", scale = 0.001, unit = "m", doc = "as GNSS.altitude (height above the ellipsoid), 1 mm resolution" },
+  { name = "fix_type",   type = "u8", doc = "as GNSS.fix_type" },
+  { name = "satellites", type = "u8" },
+  { name = "h_acc",      type = "fixed", wire = "u16", scale = 0.01, unit = "m", doc = "horizontal accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)" },
+  { name = "v_acc",      type = "fixed", wire = "u16", scale = 0.01, unit = "m", doc = "vertical accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)" },
+  { name = "ground_speed", type = "fixed", wire = "u16", scale = 0.01, unit = "m/s", doc = "horizontal speed over ground = hypot(GNSS.vel[0], GNSS.vel[1]), 0..655.34 m/s, 65535 = unknown (NaN)" },
+  { name = "vert_speed", type = "fixed", wire = "i16", scale = 0.01, unit = "m/s", doc = "vertical speed, positive UP (NWU: GNSS.vel[2]), +-327.66 m/s, -32768 = unknown (NaN)" },
+]
+
 # ---------------------------------------------------------------- USB set
 
 [packet.POSE]
@@ -153,8 +172,8 @@ fields = [
 port = 0x83
 qos = "telemetry"
 latest = true
-rate_usb = 5
-doc = "GNSS solution. Latitude and longitude in radians."
+rate_usb = 10
+doc = "GNSS solution at 10 Hz (the latest receiver solution; 5 Hz before 2026-11-21). Latitude and longitude in radians as f64 (full receiver resolution, 1e-7 degree is about 1 cm), altitude in metres as the receiver driver reports it (the u-blox height above the WGS-84 ellipsoid, not above mean sea level: it differs from the barometric altitude by the geoid separation, so compare changes or values relative to the pad, not absolute values). Used to verify the barometric/estimated altitude during descent; AIR_GNSS is the compact version for the radio."
 fields = [
   { name = "t_us",     type = "u32", unit = "us" },
   { name = "latitude",  type = "f64", unit = "rad" },
@@ -234,4 +253,22 @@ fields = [
   { name = "mag_offset",    type = "f32", count = 3, unit = "T", doc = "hard-iron offset, subtracted from the raw mag, raw frame" },
   { name = "mag_matrix",    type = "f32", count = 9, doc = "row-major 3x3, soft-iron/scale times sensor->body (dimensionless: T in, T out)" },
   { name = "gyro_bias_est", type = "f32", count = 3, unit = "rad/s", doc = "attitude EKF gyro bias state, body frame, subtracted from the calibrated gyro" },
+]
+
+# ---------------------------------------------------------------- request objects
+
+[packet.HOME_POSITION]
+port = 0x50
+qos = "event"
+latest = false
+doc = "Response object of the request channel 0x50 (workspace docs/reliable-transport-design.md 8.1; the generator does not yet know `kind = request`, so this is a plain packet definition of the object, and the transport sends it through RequestChannel/ResponderChannel, not as a stream). The REQUEST ARGS are EMPTY (zero bytes): the GS asks, the vehicle answers once; it is not streamed. Home = the position estimator's reference (the NWU origin), set at reset, refined in zeroing windows, fixed from go to landing unless reset. Failure (no reference yet) is the response status NO_DATA of the transport, not a field here."
+fields = [
+  { name = "flags",     type = "u8", bits = { LATLON_VALID = 0, ALT_VALID = 1, SIMULATION = 2, ZEROING = 3 }, doc = "LATLON_VALID: latitude/longitude are set. ALT_VALID: altitude is set. SIMULATION: the reference comes from the simulator, not from GNSS. ZEROING: an estimator zeroing window was active (the reference may still be refined)" },
+  { name = "latitude",  type = "fixed", wire = "i32", as = "f64", scale = 1.7453292519943295e-9, unit = "rad", doc = "wire: deg * 1e7; NaN when LATLON_VALID is clear" },
+  { name = "longitude", type = "fixed", wire = "i32", as = "f64", scale = 1.7453292519943295e-9, unit = "rad", doc = "wire: deg * 1e7; NaN when LATLON_VALID is clear" },
+  { name = "altitude",  type = "fixed", wire = "i32", scale = 0.001, unit = "m", doc = "the origin's altitude as the estimator uses it (same datum as GNSS.altitude), 1 mm; NaN when ALT_VALID is clear" },
+  { name = "h_acc",     type = "fixed", wire = "u16", scale = 0.01, unit = "m", doc = "horizontal accuracy of the reference, 1 cm steps, 65535 = unknown (NaN)" },
+  { name = "epoch",     type = "u8", doc = "increments whenever the home reference changes (the value VEHICLE_STATUS.home_epoch will carry); lets the GS detect a stale copy" },
+  { name = "set_time",  type = "i64", unit = "ns", doc = "vehicle time (ns) when the reference was last set or refined; 0 = never" },
+  { name = "reserved",  type = "u8", doc = "zero" },
 ]

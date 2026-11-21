@@ -5,7 +5,7 @@ from .starship import *  # noqa: F401,F403
 from . import common, starship  # noqa: E402
 
 #: FNV-1a-32 over the canonical serialisation of all schema files (carried in heartbeats).
-SCHEMA_HASH = 0xBFF82392
+SCHEMA_HASH = 0x071F7E6B
 
 #: port -> packet class
 PACKETS_BY_PORT = {
@@ -20,6 +20,7 @@ PACKETS_BY_PORT = {
     0x21: starship.AirPose,
     0x22: starship.AirActuators,
     0x23: starship.AirMission,
+    0x24: starship.AirGnss,
     0x80: starship.Pose,
     0x81: starship.Actuators,
     0x82: starship.Mission,
@@ -28,6 +29,7 @@ PACKETS_BY_PORT = {
     0x91: starship.Estimator,
     0x92: starship.TaskTiming,
     0x93: starship.Calibration,
+    0x50: starship.HomePosition,
 }
 
 #: schema name -> packet class
@@ -44,6 +46,7 @@ PACKETS_BY_NAME = {
     'AIR_POSE': starship.AirPose,
     'AIR_ACTUATORS': starship.AirActuators,
     'AIR_MISSION': starship.AirMission,
+    'AIR_GNSS': starship.AirGnss,
     'POSE': starship.Pose,
     'ACTUATORS': starship.Actuators,
     'MISSION': starship.Mission,
@@ -52,4 +55,5 @@ PACKETS_BY_NAME = {
     'ESTIMATOR': starship.Estimator,
     'TASK_TIMING': starship.TaskTiming,
     'CALIBRATION': starship.Calibration,
+    'HOME_POSITION': starship.HomePosition,
 }

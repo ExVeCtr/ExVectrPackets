@@ -179,10 +179,10 @@ class SchemaTests(unittest.TestCase):
                 self.assertEqual(cls.AIR_RATE_HZ, 0)
 
     def test_air_set_budget(self):
-        """Radio set: payload + 7 bytes per frame, below 35 % of the 6150 B/s air downlink entry capacity (the limit
-        was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION)."""
+        """Radio set: payload + 7 bytes per frame, below 41 % of the 6150 B/s air downlink entry capacity (the limit
+        was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION, then 2150 before AIR_GNSS at 10 Hz)."""
         total = sum((c.MAX_SIZE + 7) * c.AIR_RATE_HZ for c in pk.PACKETS_BY_NAME.values())
-        self.assertLess(total, 2150)
+        self.assertLess(total, 2500)
 
     def test_hash_rules(self):
         base = {"common": {"packet": {"A": {"port": 1, "fields": [{"name": "x", "type": "u8", "doc": "one"}]}}}}

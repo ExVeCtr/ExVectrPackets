@@ -135,6 +135,29 @@ decode_only.append({"name": "air_mission_older_sender_no_setpoint_q", "packet": 
 gv = {"t_us": 8, "latitude": 0.8272, "longitude": 0.149, "altitude": 512.5, "vel": [0.5, 0.25, -1.0],
       "satellites": 14, "fix_type": 3, "h_acc": 1.5, "v_acc": 2.5, "s_acc": 0.25}
 case("gnss", "GNSS", gv, P("Iddf3fBBfff", 8, 0.8272, 0.149, 512.5, 0.5, 0.25, -1.0, 14, 3, 1.5, 2.5, 0.25))
+# AIR_GNSS: lat/lon i32 deg*1e7, altitude i32 mm, fix u8, sats u8, h_acc/v_acc u16 cm, ground_speed u16 cm/s, vert_speed i16 cm/s
+ag_lat, ag_lon, ag_alt = 473977420, 85455940, 1234567
+agv = {"t_us": 31, "latitude": ag_lat * S_RAD7, "longitude": ag_lon * S_RAD7, "altitude": 1234.567, "fix_type": 3,
+       "satellites": 14, "h_acc": 1.23, "v_acc": 2.5, "ground_speed": 12.34, "vert_speed": -45.67}
+case("air_gnss", "AIR_GNSS", agv, P("IiiiBBHHHh", 31, ag_lat, ag_lon, ag_alt, 3, 14, 123, 250, 1234, -4567),
+     {**agv, "altitude": ag_alt * 0.001, "h_acc": 123 * 0.01, "v_acc": 250 * 0.01, "ground_speed": 1234 * 0.01,
+      "vert_speed": -4567 * 0.01})
+# no fix: every fixed field at its sentinel (i32 min, u16 max, i16 min) decodes to NaN
+case("air_gnss_no_fix", "AIR_GNSS",
+     {"t_us": 32, "latitude": NAN, "longitude": NAN, "altitude": NAN, "fix_type": 0, "satellites": 2, "h_acc": NAN,
+      "v_acc": NAN, "ground_speed": NAN, "vert_speed": NAN},
+     P("IiiiBBHHHh", 32, -2 ** 31, -2 ** 31, -2 ** 31, 0, 2, 65535, 65535, 65535, -32768))
+# HOME_POSITION (response object of request channel 0x50): flags u8, lat/lon i32 deg*1e7, altitude i32 mm, h_acc u16 cm,
+# epoch u8, set_time i64 ns, reserved u8 = 25 bytes
+hpv = {"flags": 0x03, "latitude": ag_lat * S_RAD7, "longitude": ag_lon * S_RAD7, "altitude": 421.5, "h_acc": 0.85,
+       "epoch": 2, "set_time": 123456789012, "reserved": 0}
+case("home_position", "HOME_POSITION", hpv, P("BiiiHBqB", 3, ag_lat, ag_lon, 421500, 85, 2, 123456789012, 0),
+     {**hpv, "altitude": 421500 * 0.001, "h_acc": 85 * 0.01})
+# nothing valid yet (flags 0): lat/lon/alt/h_acc at their sentinels
+case("home_position_invalid", "HOME_POSITION",
+     {"flags": 0, "latitude": NAN, "longitude": NAN, "altitude": NAN, "h_acc": NAN, "epoch": 0, "set_time": 0,
+      "reserved": 0},
+     P("BiiiHBqB", 0, -2 ** 31, -2 ** 31, -2 ** 31, 65535, 0, 0, 0))
 iv = {"t_us": 9, "gyro": [0.5, 0.25, -0.125], "accel": [0.0, 0.0, 9.75], "mag": [2.0, -4.0, 8.0],
       "pressure": 101325.0, "temperature": 293.5}
 case("imu_raw", "IMU_RAW", iv, P("I3f3f3fff", 9, 0.5, 0.25, -0.125, 0.0, 0.0, 9.75, 2.0, -4.0, 8.0, 101325.0, 293.5))

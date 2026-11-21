@@ -280,6 +280,64 @@ class AirMission:
 
 
 @dataclasses.dataclass
+class AirGnss:
+    """GNSS solution for the radio, the air version of GNSS (same source values, same datum), fixed-point. Purpose: verify the barometric/estimated altitude during descent, so altitude and vertical speed are included; the 3D velocity vector is reduced to ground speed and vertical speed. fix_type and satellites are as GNSS."""
+    PORT: ClassVar[Optional[int]] = 0x24
+    IS_HEARTBEAT: ClassVar[bool] = False
+    QOS: ClassVar[int] = 3  # telemetry
+    LATEST: ClassVar[bool] = True
+    AIR_ELIGIBLE: ClassVar[bool] = True
+    AIR_RATE_HZ: ClassVar[int] = 10
+    USB_RATE_HZ: ClassVar[int] = 0
+    MAX_SIZE: ClassVar[int] = 26
+    MIN_SIZE: ClassVar[int] = 26
+    t_us: int = 0  # [us] 
+    latitude: float = 0.0  # [rad] wire: deg * 1e7 (1.1 cm), +-214.7 deg, NaN = no fix
+    longitude: float = 0.0  # [rad] wire: deg * 1e7 (1.1 cm at the equator), +-214.7 deg, NaN = no fix
+    altitude: float = 0.0  # [m] as GNSS.altitude (height above the ellipsoid), 1 mm resolution
+    fix_type: int = 0  # as GNSS.fix_type
+    satellites: int = 0
+    h_acc: float = 0.0  # [m] horizontal accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
+    v_acc: float = 0.0  # [m] vertical accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
+    ground_speed: float = 0.0  # [m/s] horizontal speed over ground = hypot(GNSS.vel[0], GNSS.vel[1]), 0..655.34 m/s, 65535 = unknown (NaN)
+    vert_speed: float = 0.0  # [m/s] vertical speed, positive UP (NWU: GNSS.vel[2]), +-327.66 m/s, -32768 = unknown (NaN)
+
+    def encode(self) -> bytes:
+        """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
+        b = bytearray(26)
+        _rt.put(b, '<I', 0, self.t_us)
+        _rt.put_fixed(b, '<i', 4, self.latitude, 1.7453292519943295e-09, -2147483647, 2147483647, -2147483648)
+        _rt.put_fixed(b, '<i', 8, self.longitude, 1.7453292519943295e-09, -2147483647, 2147483647, -2147483648)
+        _rt.put_fixed(b, '<i', 12, self.altitude, 0.001, -2147483647, 2147483647, -2147483648)
+        _rt.put(b, '<B', 16, self.fix_type)
+        _rt.put(b, '<B', 17, self.satellites)
+        _rt.put_fixed(b, '<H', 18, self.h_acc, 0.01, 0, 65534, 65535)
+        _rt.put_fixed(b, '<H', 20, self.v_acc, 0.01, 0, 65534, 65535)
+        _rt.put_fixed(b, '<H', 22, self.ground_speed, 0.01, 0, 65534, 65535)
+        _rt.put_fixed(b, '<h', 24, self.vert_speed, 0.01, -32767, 32767, -32768)
+        return bytes(b)
+
+    @classmethod
+    def decode(cls, data) -> "AirGnss":
+        """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
+        data = bytes(data)
+        if len(data) < cls.MIN_SIZE:
+            raise ValueError('AIR_GNSS: payload too short (%d < 26)' % len(data))
+        t = cls()
+        t.t_us = _rt.get(data, '<I', 0)
+        t.latitude = _rt.get_fixed(data, '<i', 4, 1.7453292519943295e-09, -2147483648)
+        t.longitude = _rt.get_fixed(data, '<i', 8, 1.7453292519943295e-09, -2147483648)
+        t.altitude = _rt.get_fixed(data, '<i', 12, 0.001, -2147483648)
+        t.fix_type = _rt.get(data, '<B', 16)
+        t.satellites = _rt.get(data, '<B', 17)
+        t.h_acc = _rt.get_fixed(data, '<H', 18, 0.01, 65535)
+        t.v_acc = _rt.get_fixed(data, '<H', 20, 0.01, 65535)
+        t.ground_speed = _rt.get_fixed(data, '<H', 22, 0.01, 65535)
+        t.vert_speed = _rt.get_fixed(data, '<h', 24, 0.01, -32768)
+        return t
+
+
+@dataclasses.dataclass
 class Pose:
     """Fast class: attitude [omega, q] and position [V, P], full precision."""
     PORT: ClassVar[Optional[int]] = 0x80
@@ -446,14 +504,14 @@ class Mission:
 
 @dataclasses.dataclass
 class Gnss:
-    """GNSS solution. Latitude and longitude in radians."""
+    """GNSS solution at 10 Hz (the latest receiver solution; 5 Hz before 2026-11-21). Latitude and longitude in radians as f64 (full receiver resolution, 1e-7 degree is about 1 cm), altitude in metres as the receiver driver reports it (the u-blox height above the WGS-84 ellipsoid, not above mean sea level: it differs from the barometric altitude by the geoid separation, so compare changes or values relative to the pad, not absolute values). Used to verify the barometric/estimated altitude during descent; AIR_GNSS is the compact version for the radio."""
     PORT: ClassVar[Optional[int]] = 0x83
     IS_HEARTBEAT: ClassVar[bool] = False
     QOS: ClassVar[int] = 3  # telemetry
     LATEST: ClassVar[bool] = True
     AIR_ELIGIBLE: ClassVar[bool] = False
     AIR_RATE_HZ: ClassVar[int] = 0
-    USB_RATE_HZ: ClassVar[int] = 5
+    USB_RATE_HZ: ClassVar[int] = 10
     MAX_SIZE: ClassVar[int] = 50
     MIN_SIZE: ClassVar[int] = 50
     t_us: int = 0  # [us] 
@@ -752,5 +810,61 @@ class Calibration:
         t.mag_offset = [_rt.get(data, '<f', 104 + i * 4) for i in range(3)]
         t.mag_matrix = [_rt.get(data, '<f', 116 + i * 4) for i in range(9)]
         t.gyro_bias_est = [_rt.get(data, '<f', 152 + i * 4) for i in range(3)]
+        return t
+
+
+@dataclasses.dataclass
+class HomePosition:
+    """Response object of the request channel 0x50 (workspace docs/reliable-transport-design.md 8.1; the generator does not yet know `kind = request`, so this is a plain packet definition of the object, and the transport sends it through RequestChannel/ResponderChannel, not as a stream). The REQUEST ARGS are EMPTY (zero bytes): the GS asks, the vehicle answers once; it is not streamed. Home = the position estimator's reference (the NWU origin), set at reset, refined in zeroing windows, fixed from go to landing unless reset. Failure (no reference yet) is the response status NO_DATA of the transport, not a field here."""
+    PORT: ClassVar[Optional[int]] = 0x50
+    IS_HEARTBEAT: ClassVar[bool] = False
+    QOS: ClassVar[int] = 2  # event
+    LATEST: ClassVar[bool] = False
+    AIR_ELIGIBLE: ClassVar[bool] = True
+    AIR_RATE_HZ: ClassVar[int] = 0
+    USB_RATE_HZ: ClassVar[int] = 0
+    MAX_SIZE: ClassVar[int] = 25
+    MIN_SIZE: ClassVar[int] = 25
+    FLAGS_LATLON_VALID: ClassVar[int] = 1
+    FLAGS_ALT_VALID: ClassVar[int] = 2
+    FLAGS_SIMULATION: ClassVar[int] = 4
+    FLAGS_ZEROING: ClassVar[int] = 8
+    flags: int = 0  # LATLON_VALID: latitude/longitude are set. ALT_VALID: altitude is set. SIMULATION: the reference comes from the simulator, not from GNSS. ZEROING: an estimator zeroing window was active (the reference may still be refined)
+    latitude: float = 0.0  # [rad] wire: deg * 1e7; NaN when LATLON_VALID is clear
+    longitude: float = 0.0  # [rad] wire: deg * 1e7; NaN when LATLON_VALID is clear
+    altitude: float = 0.0  # [m] the origin's altitude as the estimator uses it (same datum as GNSS.altitude), 1 mm; NaN when ALT_VALID is clear
+    h_acc: float = 0.0  # [m] horizontal accuracy of the reference, 1 cm steps, 65535 = unknown (NaN)
+    epoch: int = 0  # increments whenever the home reference changes (the value VEHICLE_STATUS.home_epoch will carry); lets the GS detect a stale copy
+    set_time: int = 0  # [ns] vehicle time (ns) when the reference was last set or refined; 0 = never
+    reserved: int = 0  # zero
+
+    def encode(self) -> bytes:
+        """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
+        b = bytearray(25)
+        _rt.put(b, '<B', 0, self.flags)
+        _rt.put_fixed(b, '<i', 1, self.latitude, 1.7453292519943295e-09, -2147483647, 2147483647, -2147483648)
+        _rt.put_fixed(b, '<i', 5, self.longitude, 1.7453292519943295e-09, -2147483647, 2147483647, -2147483648)
+        _rt.put_fixed(b, '<i', 9, self.altitude, 0.001, -2147483647, 2147483647, -2147483648)
+        _rt.put_fixed(b, '<H', 13, self.h_acc, 0.01, 0, 65534, 65535)
+        _rt.put(b, '<B', 15, self.epoch)
+        _rt.put(b, '<q', 16, self.set_time)
+        _rt.put(b, '<B', 24, self.reserved)
+        return bytes(b)
+
+    @classmethod
+    def decode(cls, data) -> "HomePosition":
+        """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
+        data = bytes(data)
+        if len(data) < cls.MIN_SIZE:
+            raise ValueError('HOME_POSITION: payload too short (%d < 25)' % len(data))
+        t = cls()
+        t.flags = _rt.get(data, '<B', 0)
+        t.latitude = _rt.get_fixed(data, '<i', 1, 1.7453292519943295e-09, -2147483648)
+        t.longitude = _rt.get_fixed(data, '<i', 5, 1.7453292519943295e-09, -2147483648)
+        t.altitude = _rt.get_fixed(data, '<i', 9, 0.001, -2147483648)
+        t.h_acc = _rt.get_fixed(data, '<H', 13, 0.01, 65535)
+        t.epoch = _rt.get(data, '<B', 15)
+        t.set_time = _rt.get(data, '<q', 16)
+        t.reserved = _rt.get(data, '<B', 24)
         return t
 

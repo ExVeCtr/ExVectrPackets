@@ -271,7 +271,7 @@ template <class T> bool tryDecode(const uint8_t* p, size_t n) { T t; return t.de
 static const Ops kOps[] = {
     OPS("HEARTBEAT", Heartbeat), OPS("LINK_STATS", LinkStats), OPS("LOG_TEXT", LogText), OPS("LINK_CONFIG", LinkConfig),
     OPS("HANDSET_TELEM", HandsetTelem), OPS("RC_STATE", RcState), OPS("REQUEST", Request),
-    OPS("REQUEST_ACK", RequestAck), OPS("VEHICLE_STATUS", VehicleStatus), OPS("AIR_POSE", AirPose), OPS("AIR_ACTUATORS", AirActuators), OPS("AIR_MISSION", AirMission),
+    OPS("REQUEST_ACK", RequestAck), OPS("VEHICLE_STATUS", VehicleStatus), OPS("AIR_POSE", AirPose), OPS("AIR_ACTUATORS", AirActuators), OPS("AIR_MISSION", AirMission), OPS("AIR_GNSS", AirGnss), OPS("HOME_POSITION", HomePosition),
     OPS("POSE", Pose), OPS("ACTUATORS", Actuators), OPS("MISSION", Mission), OPS("GNSS", Gnss),
     OPS("IMU_RAW", ImuRaw), OPS("ESTIMATOR", Estimator), OPS("TASK_TIMING", TaskTiming), OPS("CALIBRATION", Calibration),
     OPS("KITCHEN_SINK", KitchenSink), OPS("OPTIONAL_TEST", OptionalTest),
@@ -380,12 +380,20 @@ static void test_metadata_constants() {
     TEST_ASSERT_EQUAL(38, AirMission::kMaxSize);
     TEST_ASSERT_EQUAL(30, AirMission::kMinSize);
     TEST_ASSERT_EQUAL_UINT16(5, AirMission::kAirRateHz);
-    // every air-eligible packet fits the radio budget: < 2150 B/s including 7 bytes overhead, i.e. below 35 % of the
-    // 6150 B/s air downlink entry capacity (was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION)
+    TEST_ASSERT_TRUE(AirGnss::kAirEligible);
+    TEST_ASSERT_EQUAL(0x24, AirGnss::kPort);
+    TEST_ASSERT_EQUAL(26, AirGnss::kMaxSize);
+    TEST_ASSERT_EQUAL_UINT16(10, AirGnss::kAirRateHz);
+    TEST_ASSERT_EQUAL_UINT16(10, Gnss::kUsbRateHz);
+    TEST_ASSERT_EQUAL(0x50, HomePosition::kPort);
+    TEST_ASSERT_EQUAL(25, HomePosition::kMaxSize);
+    // every air-eligible packet fits the radio budget: < 2500 B/s including 7 bytes overhead, i.e. below 41 % of the
+    // 6150 B/s air downlink entry capacity (was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION; 2150
+    // before AIR_GNSS at 10 Hz, 330 B/s)
     unsigned total = (VehicleStatus::kMaxSize + 7) * VehicleStatus::kAirRateHz + (AirPose::kMaxSize + 7) * AirPose::kAirRateHz +
-                     (AirActuators::kMaxSize + 7) * AirActuators::kAirRateHz + (AirMission::kMaxSize + 7) * AirMission::kAirRateHz +
+                     (AirActuators::kMaxSize + 7) * AirActuators::kAirRateHz + (AirMission::kMaxSize + 7) * AirMission::kAirRateHz + (AirGnss::kMaxSize + 7) * AirGnss::kAirRateHz +
                      (HandsetTelem::kMaxSize + 7) * HandsetTelem::kAirRateHz + (LinkStats::kMaxSize + 7) * LinkStats::kAirRateHz;
-    TEST_ASSERT_TRUE(total < 2150);
+    TEST_ASSERT_TRUE(total < 2500);
 }
 
 static void test_log_text_helper() {

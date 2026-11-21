@@ -314,6 +314,82 @@ struct AirMission {
     }
 };
 
+/// GNSS solution for the radio, the air version of GNSS (same source values, same datum), fixed-point. Purpose: verify the barometric/estimated altitude during descent, so altitude and vertical speed are included; the 3D velocity vector is reduced to ground speed and vertical speed. fix_type and satellites are as GNSS.
+struct AirGnss {
+    static constexpr uint8_t kPort = 0x24;
+    static constexpr bool kIsHeartbeat = false;
+    static constexpr uint8_t kQos = 3; // telemetry (Control 0, Link 1, Event 2, Telemetry 3)
+    static constexpr bool kLatest = true;
+    static constexpr bool kAirEligible = true;
+    static constexpr uint16_t kAirRateHz = 10;
+    static constexpr uint16_t kUsbRateHz = 0;
+    static constexpr size_t kMaxSize = 26;
+    static constexpr size_t kMinSize = 26;
+
+    uint32_t t_us = {}; // [us] 
+    double latitude = {}; // [rad] wire: deg * 1e7 (1.1 cm), +-214.7 deg, NaN = no fix
+    double longitude = {}; // [rad] wire: deg * 1e7 (1.1 cm at the equator), +-214.7 deg, NaN = no fix
+    float altitude = {}; // [m] as GNSS.altitude (height above the ellipsoid), 1 mm resolution
+    uint8_t fix_type = {}; // as GNSS.fix_type
+    uint8_t satellites = {};
+    float h_acc = {}; // [m] horizontal accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
+    float v_acc = {}; // [m] vertical accuracy estimate (1 sigma), 1 cm steps, 0..655.34 m, 65535 = unknown (NaN)
+    float ground_speed = {}; // [m/s] horizontal speed over ground = hypot(GNSS.vel[0], GNSS.vel[1]), 0..655.34 m/s, 65535 = unknown (NaN)
+    float vert_speed = {}; // [m/s] vertical speed, positive UP (NWU: GNSS.vel[2]), +-327.66 m/s, -32768 = unknown (NaN)
+
+    /// Bytes written, 0 on failure (null buffer or too small).
+    size_t encode(uint8_t* out, size_t cap) const {
+        constexpr size_t total = 26;
+        if (out == nullptr || cap < total) return 0;
+        codec::put_u32(out + 0, t_us);
+        codec::put_i32(out + 4, static_cast<int32_t>(codec::fixedEncode(latitude, 1.7453292519943295e-09, -2147483647LL, 2147483647LL, -2147483648LL)));
+        codec::put_i32(out + 8, static_cast<int32_t>(codec::fixedEncode(longitude, 1.7453292519943295e-09, -2147483647LL, 2147483647LL, -2147483648LL)));
+        codec::put_i32(out + 12, static_cast<int32_t>(codec::fixedEncode(altitude, 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
+        codec::put_u8(out + 16, fix_type);
+        codec::put_u8(out + 17, satellites);
+        codec::put_u16(out + 18, static_cast<uint16_t>(codec::fixedEncode(h_acc, 0.01, 0LL, 65534LL, 65535LL)));
+        codec::put_u16(out + 20, static_cast<uint16_t>(codec::fixedEncode(v_acc, 0.01, 0LL, 65534LL, 65535LL)));
+        codec::put_u16(out + 22, static_cast<uint16_t>(codec::fixedEncode(ground_speed, 0.01, 0LL, 65534LL, 65535LL)));
+        codec::put_i16(out + 24, static_cast<int16_t>(codec::fixedEncode(vert_speed, 0.01, -32767LL, 32767LL, -32768LL)));
+        return total;
+    }
+
+    /// False if the payload is shorter than kMinSize (or a tail is too long). Longer payloads are accepted (extra
+    /// bytes ignored); optional fields missing from shorter payloads get their default/NaN.
+    bool decode(const uint8_t* in, size_t len) {
+        if (in == nullptr || len < kMinSize) return false;
+        AirGnss t;
+        t.t_us = codec::get_u32(in + 0);
+        t.latitude = static_cast<double>(codec::fixedDecode(codec::get_i32(in + 4), 1.7453292519943295e-09, -2147483648LL));
+        t.longitude = static_cast<double>(codec::fixedDecode(codec::get_i32(in + 8), 1.7453292519943295e-09, -2147483648LL));
+        t.altitude = static_cast<float>(codec::fixedDecode(codec::get_i32(in + 12), 0.001, -2147483648LL));
+        t.fix_type = codec::get_u8(in + 16);
+        t.satellites = codec::get_u8(in + 17);
+        t.h_acc = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 18), 0.01, 65535LL));
+        t.v_acc = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 20), 0.01, 65535LL));
+        t.ground_speed = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 22), 0.01, 65535LL));
+        t.vert_speed = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 24), 0.01, -32768LL));
+        *this = t;
+        return true;
+    }
+
+    /// Calls v.scalar/array/chars/tail(name, member) for every field (used by tests and tooling).
+    template <class V>
+    void visit(V& v) {
+        v.scalar("t_us", t_us);
+        v.scalar("latitude", latitude);
+        v.scalar("longitude", longitude);
+        v.scalar("altitude", altitude);
+        v.scalar("fix_type", fix_type);
+        v.scalar("satellites", satellites);
+        v.scalar("h_acc", h_acc);
+        v.scalar("v_acc", v_acc);
+        v.scalar("ground_speed", ground_speed);
+        v.scalar("vert_speed", vert_speed);
+        (void)v;
+    }
+};
+
 /// Fast class: attitude [omega, q] and position [V, P], full precision.
 struct Pose {
     static constexpr uint8_t kPort = 0x80;
@@ -494,7 +570,7 @@ struct Mission {
     }
 };
 
-/// GNSS solution. Latitude and longitude in radians.
+/// GNSS solution at 10 Hz (the latest receiver solution; 5 Hz before 2026-11-21). Latitude and longitude in radians as f64 (full receiver resolution, 1e-7 degree is about 1 cm), altitude in metres as the receiver driver reports it (the u-blox height above the WGS-84 ellipsoid, not above mean sea level: it differs from the barometric altitude by the geoid separation, so compare changes or values relative to the pad, not absolute values). Used to verify the barometric/estimated altitude during descent; AIR_GNSS is the compact version for the radio.
 struct Gnss {
     static constexpr uint8_t kPort = 0x83;
     static constexpr bool kIsHeartbeat = false;
@@ -502,7 +578,7 @@ struct Gnss {
     static constexpr bool kLatest = true;
     static constexpr bool kAirEligible = false;
     static constexpr uint16_t kAirRateHz = 0;
-    static constexpr uint16_t kUsbRateHz = 5;
+    static constexpr uint16_t kUsbRateHz = 10;
     static constexpr size_t kMaxSize = 50;
     static constexpr size_t kMinSize = 50;
 
@@ -829,6 +905,78 @@ struct Calibration {
         v.array("mag_offset", mag_offset);
         v.array("mag_matrix", mag_matrix);
         v.array("gyro_bias_est", gyro_bias_est);
+        (void)v;
+    }
+};
+
+/// Response object of the request channel 0x50 (workspace docs/reliable-transport-design.md 8.1; the generator does not yet know `kind = request`, so this is a plain packet definition of the object, and the transport sends it through RequestChannel/ResponderChannel, not as a stream). The REQUEST ARGS are EMPTY (zero bytes): the GS asks, the vehicle answers once; it is not streamed. Home = the position estimator's reference (the NWU origin), set at reset, refined in zeroing windows, fixed from go to landing unless reset. Failure (no reference yet) is the response status NO_DATA of the transport, not a field here.
+struct HomePosition {
+    static constexpr uint8_t kPort = 0x50;
+    static constexpr bool kIsHeartbeat = false;
+    static constexpr uint8_t kQos = 2; // event (Control 0, Link 1, Event 2, Telemetry 3)
+    static constexpr bool kLatest = false;
+    static constexpr bool kAirEligible = true;
+    static constexpr uint16_t kAirRateHz = 0;
+    static constexpr uint16_t kUsbRateHz = 0;
+    static constexpr size_t kMaxSize = 25;
+    static constexpr size_t kMinSize = 25;
+    static constexpr uint8_t kFlagsLatlonValid = uint8_t(1u << 0);
+    static constexpr uint8_t kFlagsAltValid = uint8_t(1u << 1);
+    static constexpr uint8_t kFlagsSimulation = uint8_t(1u << 2);
+    static constexpr uint8_t kFlagsZeroing = uint8_t(1u << 3);
+
+    uint8_t flags = {}; // LATLON_VALID: latitude/longitude are set. ALT_VALID: altitude is set. SIMULATION: the reference comes from the simulator, not from GNSS. ZEROING: an estimator zeroing window was active (the reference may still be refined)
+    double latitude = {}; // [rad] wire: deg * 1e7; NaN when LATLON_VALID is clear
+    double longitude = {}; // [rad] wire: deg * 1e7; NaN when LATLON_VALID is clear
+    float altitude = {}; // [m] the origin's altitude as the estimator uses it (same datum as GNSS.altitude), 1 mm; NaN when ALT_VALID is clear
+    float h_acc = {}; // [m] horizontal accuracy of the reference, 1 cm steps, 65535 = unknown (NaN)
+    uint8_t epoch = {}; // increments whenever the home reference changes (the value VEHICLE_STATUS.home_epoch will carry); lets the GS detect a stale copy
+    int64_t set_time = {}; // [ns] vehicle time (ns) when the reference was last set or refined; 0 = never
+    uint8_t reserved = {}; // zero
+
+    /// Bytes written, 0 on failure (null buffer or too small).
+    size_t encode(uint8_t* out, size_t cap) const {
+        constexpr size_t total = 25;
+        if (out == nullptr || cap < total) return 0;
+        codec::put_u8(out + 0, flags);
+        codec::put_i32(out + 1, static_cast<int32_t>(codec::fixedEncode(latitude, 1.7453292519943295e-09, -2147483647LL, 2147483647LL, -2147483648LL)));
+        codec::put_i32(out + 5, static_cast<int32_t>(codec::fixedEncode(longitude, 1.7453292519943295e-09, -2147483647LL, 2147483647LL, -2147483648LL)));
+        codec::put_i32(out + 9, static_cast<int32_t>(codec::fixedEncode(altitude, 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
+        codec::put_u16(out + 13, static_cast<uint16_t>(codec::fixedEncode(h_acc, 0.01, 0LL, 65534LL, 65535LL)));
+        codec::put_u8(out + 15, epoch);
+        codec::put_i64(out + 16, set_time);
+        codec::put_u8(out + 24, reserved);
+        return total;
+    }
+
+    /// False if the payload is shorter than kMinSize (or a tail is too long). Longer payloads are accepted (extra
+    /// bytes ignored); optional fields missing from shorter payloads get their default/NaN.
+    bool decode(const uint8_t* in, size_t len) {
+        if (in == nullptr || len < kMinSize) return false;
+        HomePosition t;
+        t.flags = codec::get_u8(in + 0);
+        t.latitude = static_cast<double>(codec::fixedDecode(codec::get_i32(in + 1), 1.7453292519943295e-09, -2147483648LL));
+        t.longitude = static_cast<double>(codec::fixedDecode(codec::get_i32(in + 5), 1.7453292519943295e-09, -2147483648LL));
+        t.altitude = static_cast<float>(codec::fixedDecode(codec::get_i32(in + 9), 0.001, -2147483648LL));
+        t.h_acc = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 13), 0.01, 65535LL));
+        t.epoch = codec::get_u8(in + 15);
+        t.set_time = codec::get_i64(in + 16);
+        t.reserved = codec::get_u8(in + 24);
+        *this = t;
+        return true;
+    }
+
+    /// Calls v.scalar/array/chars/tail(name, member) for every field (used by tests and tooling).
+    template <class V>
+    void visit(V& v) {
+        v.scalar("flags", flags);
+        v.scalar("latitude", latitude);
+        v.scalar("longitude", longitude);
+        v.scalar("altitude", altitude);
+        v.scalar("h_acc", h_acc);
+        v.scalar("epoch", epoch);
+        v.scalar("set_time", set_time);
+        v.scalar("reserved", reserved);
         (void)v;
     }
 };

@@ -646,6 +646,92 @@
    "hex": "08000000d50968226c78ea3fdf4f8d976e12c33f002000440000003f0000803e000080bf0e030000c03f000020400000803e"
   },
   {
+   "name": "air_gnss",
+   "packet": "AIR_GNSS",
+   "values": {
+    "t_us": 31,
+    "latitude": 0.8272466559108022,
+    "longitude": 0.1491487518386723,
+    "altitude": 1234.567,
+    "fix_type": 3,
+    "satellites": 14,
+    "h_acc": 1.23,
+    "v_acc": 2.5,
+    "ground_speed": 12.34,
+    "vert_speed": -45.67
+   },
+   "hex": "1f0000004c52401c44f4170587d61200030e7b00fa00d20429ee",
+   "decoded": {
+    "t_us": 31,
+    "latitude": 0.8272466559108022,
+    "longitude": 0.1491487518386723,
+    "altitude": 1234.567,
+    "fix_type": 3,
+    "satellites": 14,
+    "h_acc": 1.23,
+    "v_acc": 2.5,
+    "ground_speed": 12.34,
+    "vert_speed": -45.67
+   }
+  },
+  {
+   "name": "air_gnss_no_fix",
+   "packet": "AIR_GNSS",
+   "values": {
+    "t_us": 32,
+    "latitude": null,
+    "longitude": null,
+    "altitude": null,
+    "fix_type": 0,
+    "satellites": 2,
+    "h_acc": null,
+    "v_acc": null,
+    "ground_speed": null,
+    "vert_speed": null
+   },
+   "hex": "200000000000008000000080000000800002ffffffffffff0080"
+  },
+  {
+   "name": "home_position",
+   "packet": "HOME_POSITION",
+   "values": {
+    "flags": 3,
+    "latitude": 0.8272466559108022,
+    "longitude": 0.1491487518386723,
+    "altitude": 421.5,
+    "h_acc": 0.85,
+    "epoch": 2,
+    "set_time": 123456789012,
+    "reserved": 0
+   },
+   "hex": "034c52401c44f417057c6e0600550002141a99be1c00000000",
+   "decoded": {
+    "flags": 3,
+    "latitude": 0.8272466559108022,
+    "longitude": 0.1491487518386723,
+    "altitude": 421.5,
+    "h_acc": 0.85,
+    "epoch": 2,
+    "set_time": 123456789012,
+    "reserved": 0
+   }
+  },
+  {
+   "name": "home_position_invalid",
+   "packet": "HOME_POSITION",
+   "values": {
+    "flags": 0,
+    "latitude": null,
+    "longitude": null,
+    "altitude": null,
+    "h_acc": null,
+    "epoch": 0,
+    "set_time": 0,
+    "reserved": 0
+   },
+   "hex": "00000000800000008000000080ffff00000000000000000000"
+  },
+  {
    "name": "imu_raw",
    "packet": "IMU_RAW",
    "values": {
