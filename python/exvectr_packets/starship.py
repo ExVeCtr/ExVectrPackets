@@ -119,7 +119,7 @@ class AirPose:
     QOS: ClassVar[int] = 3  # telemetry
     LATEST: ClassVar[bool] = True
     AIR_ELIGIBLE: ClassVar[bool] = True
-    AIR_RATE_HZ: ClassVar[int] = 10
+    AIR_RATE_HZ: ClassVar[int] = 25
     USB_RATE_HZ: ClassVar[int] = 0
     MAX_SIZE: ClassVar[int] = 30
     MIN_SIZE: ClassVar[int] = 30

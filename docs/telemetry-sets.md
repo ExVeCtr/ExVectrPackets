@@ -7,7 +7,7 @@ Design 3.5.6 as adapted by the user decisions in the Revision 1 box of `docs/net
 | Packet | Port | Bytes | Air Hz | B/s incl. 7 B overhead |
 |---|---|---|---|---|
 | `VEHICLE_STATUS` (slow class: mode, mission, applied arm state, motor gate, control source, failure bits, sensors, last request, rc age, home epoch) | 0x20 | 29 | 5 | 180 |
-| `AIR_POSE` (q i16, position i32 at 1 mm, velocity i16 at 0.01 m/s) | 0x21 | 30 | 10 | 370 |
+| `AIR_POSE` (q i16, position i32 at 1 mm, velocity i16 at 0.01 m/s) | 0x21 | 30 | 25 | 925 |
 | `AIR_ACTUATORS` (two actuator samples per packet, 20 ms apart: TVC deflection, roll torque, thrust, flaps; i16/u16 fixed) | 0x22 | 38 | 25 | 1125 |
 | `AIR_MISSION` (mission time, mode, phase, index, waypoint, position/velocity setpoint, attitude setpoint q, fixed) | 0x23 | 38 | 5 | 225 |
 | `AIR_GNSS` (lat/lon i32 at 1e-7 deg, altitude i32 mm, NWU velocity i16 x3 at 0.01 m/s) | 0x24 | 22 | 10 | 290 |
@@ -15,9 +15,9 @@ Design 3.5.6 as adapted by the user decisions in the Revision 1 box of `docs/net
 | `HANDSET_TELEM` | 0x03 | 34 | 2 | 82 |
 | `LINK_STATS` (from node 3) | 0x01 | 19 | 2 | 52 |
 | heartbeats (nodes 1 and 3) | - | 11 | 1 | 36 |
-| **Total** | | | | **about 2.42 kB/s** (air downlink entry capacity: 6.15 kB/s; workspace `tools/network_budget.py` counts LINK_STATS at 5 Hz: 2.45 kB/s, 40 %; it was 2.14 kB/s, 35 %, before `AIR_GNSS`) |
+| **Total** | | | | **about 2.98 kB/s** (air downlink entry capacity: 6.15 kB/s, 48 %; workspace `tools/network_budget.py` counts LINK_STATS at 5 Hz: about 3.01 kB/s, 49 %; it was 2.45 kB/s, 40 %, with `AIR_POSE` at 10 Hz, and 2.14 kB/s, 35 %, before `AIR_GNSS`) |
 
-`GNSS`, `ACTUATORS`, `MISSION` and the raw/debug packets are not on the radio; `AIR_ACTUATORS`, `AIR_MISSION` and `AIR_GNSS` (+ `AIR_GNSS_INFO`) are their air versions. `HANDSET_TELEM` already carries position, speed and attitude for the Pocket display. A test checks that the air set stays below 2500 B/s (41 % of the air downlink; the limit was 1.2 kB/s before `AIR_ACTUATORS` and `AIR_MISSION`, 2150 B/s before `AIR_GNSS`).
+`GNSS`, `ACTUATORS`, `MISSION` and the raw/debug packets are not on the radio; `AIR_ACTUATORS`, `AIR_MISSION` and `AIR_GNSS` (+ `AIR_GNSS_INFO`) are their air versions. `HANDSET_TELEM` already carries position, speed and attitude for the Pocket display. A test checks that the air set stays below 3000 B/s (49 % of the air downlink; the limit was 1.2 kB/s before `AIR_ACTUATORS` and `AIR_MISSION`, 2150 B/s before `AIR_GNSS`, 2500 B/s before `AIR_POSE` went to 25 Hz; the set computes to 2896 B/s, so about 100 B/s of headroom is left on purpose, any new air stream must raise the limit deliberately).
 
 `AIR_GNSS` (2026-11-21, H1): GNSS position and the full NWU velocity at 10 Hz for verifying the barometric/estimated altitude during descent; fix type, satellites and h/v accuracy are in `AIR_GNSS_INFO` at 1 Hz (the split costs 307 B/s against 370 B/s for one 30 B packet at 10 Hz). Altitude is as `GNSS.altitude` (the driver's ellipsoid height; the datum does not matter for pad-relative use). Sentinel values decode as NaN. `HOME_POSITION` (0x50) is not a stream: it is the response object of a request channel (workspace `docs/reliable-transport-design.md` 8.1), see `docs/packet-reference.md`; `VEHICLE_STATUS.home_epoch` tells the GS when to request it again.
 
@@ -45,3 +45,5 @@ All of the above that have a USB rate, plus ports 0x80 and up (never forwarded t
 ## Control and request packets
 
 `RC_STATE` (0x10, 34 B) carries the 16 channels and the flag `SOURCE_OK` (bit 0: the handset data is valid; bits 1..7 reserved, zero). `RC_STATE` is deliberately generic: it carries only the controller's sticks and switches, so the ExVectrLink module stays independent of the Starship; the vehicle maps a switch position to the motor enable itself (workspace `docs/safety.md` section 3). `REQUEST` (0x11) / `REQUEST_ACK` (0x12) use the action enum `RequestAction` and the status enum `RequestStatus`.
+
+`AIR_POSE` 25 Hz (owner request 2026-11-22, was 10 Hz): smoother pose on the radio-only ground station. `rate_air` is part of the schema hash, so the hash changed (0x365B8308 to 0xF9A16438). The vehicle's tick is 100 Hz, so 25 Hz is every 4th tick (40 ms).

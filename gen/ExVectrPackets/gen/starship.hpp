@@ -141,7 +141,7 @@ struct AirPose {
     static constexpr uint8_t kQos = 3; // telemetry (Control 0, Link 1, Event 2, Telemetry 3)
     static constexpr bool kLatest = true;
     static constexpr bool kAirEligible = true;
-    static constexpr uint16_t kAirRateHz = 10;
+    static constexpr uint16_t kAirRateHz = 25;
     static constexpr uint16_t kUsbRateHz = 0;
     static constexpr size_t kMaxSize = 30;
     static constexpr size_t kMinSize = 30;

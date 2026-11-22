@@ -62,7 +62,7 @@ fields = [
 port = 0x21
 qos = "telemetry"
 latest = true
-rate_air = 10
+rate_air = 25
 doc = "Minimal pose for the radio: attitude, position and velocity, fixed-point."
 fields = [
   { name = "t_us", type = "u32", unit = "us" },
