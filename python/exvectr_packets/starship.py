@@ -43,7 +43,7 @@ class VehicleStatus:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 5
     USB_RATE_HZ: ClassVar[int] = 20
-    MAX_SIZE: ClassVar[int] = 29
+    MAX_SIZE: ClassVar[int] = 30
     MIN_SIZE: ClassVar[int] = 28
     FLAGS_ARMED: ClassVar[int] = 1
     FLAGS_SIMULATION: ClassVar[int] = 2
@@ -66,10 +66,11 @@ class VehicleStatus:
     last_req_status: int = 0  # RequestStatus value of last_req_id
     rc_age: float = 0.0  # [s] age of the last accepted RC_STATE, invalid (NaN) = none
     home_epoch: int = 0  # increments whenever the home reference (HOME_POSITION) changes; the GS requests HOME_POSITION again when it changes. 0 = no home yet. Missing (older sender) decodes as 0
+    calib_state: int = 0  # calibration state bits. bit0 gyro calibration valid, bit1 accel calibration valid, bit2 mag calibration valid, bit3 a calibration session is active (collecting or fitting), bit4 ready to arm (all gates the vehicle applies for Arm and MissionBegin are satisfied), bits 5-7 reserved (zero). Missing (older sender) decodes as 0 = unknown
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(29)
+        b = bytearray(30)
         _rt.put(b, '<I', 0, self.t_us)
         _rt.put(b, '<q', 4, self.t_ns)
         _rt.put(b, '<B', 12, self.mode)
@@ -83,6 +84,7 @@ class VehicleStatus:
         _rt.put(b, '<B', 25, self.last_req_status)
         _rt.put_fixed(b, '<H', 26, self.rc_age, 0.001, 0, 65534, 65535)
         _rt.put(b, '<B', 28, self.home_epoch)
+        _rt.put(b, '<B', 29, self.calib_state)
         return bytes(b)
 
     @classmethod
@@ -108,6 +110,10 @@ class VehicleStatus:
             t.home_epoch = _rt.get(data, '<B', 28)
         else:
             t.home_epoch = 0
+        if len(data) >= 30:
+            t.calib_state = _rt.get(data, '<B', 29)
+        else:
+            t.calib_state = 0
         return t
 
 
@@ -439,17 +445,18 @@ class Actuators:
     AIR_ELIGIBLE: ClassVar[bool] = False
     AIR_RATE_HZ: ClassVar[int] = 0
     USB_RATE_HZ: ClassVar[int] = 50
-    MAX_SIZE: ClassVar[int] = 36
+    MAX_SIZE: ClassVar[int] = 40
     MIN_SIZE: ClassVar[int] = 36
     t_us: int = 0  # [us] 
     flaps: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # [rad] [TL, TR, BL, BR]; 0 = extended, increasing = folded toward the back
     tvc: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 2)  # [rad] thrust vector deflection [x, y]
     thrust: float = 0.0  # [N] 
     ground_distance: float = 0.0  # [m] NaN if unavailable
+    roll_torque: float = 0.0  # [N*m] TVC twist (roll) actuation as the roll torque about body Z the vanes produce (same meaning as AIR_ACTUATORS.roll_torque, unquantised). Missing (older sender) decodes as NaN = unknown
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(36)
+        b = bytearray(40)
         _rt.put(b, '<I', 0, self.t_us)
         if len(self.flaps) != 4:
             raise ValueError('flaps needs 4 elements')
@@ -461,6 +468,7 @@ class Actuators:
             _rt.put_f32(b, 20 + i * 4, v)
         _rt.put_f32(b, 28, self.thrust)
         _rt.put_f32(b, 32, self.ground_distance)
+        _rt.put_f32(b, 36, self.roll_torque)
         return bytes(b)
 
     @classmethod
@@ -475,6 +483,10 @@ class Actuators:
         t.tvc = [_rt.get(data, '<f', 20 + i * 4) for i in range(2)]
         t.thrust = _rt.get(data, '<f', 28)
         t.ground_distance = _rt.get(data, '<f', 32)
+        if len(data) >= 40:
+            t.roll_torque = _rt.get(data, '<f', 36)
+        else:
+            t.roll_torque = float('nan')
         return t
 
 
@@ -488,7 +500,7 @@ class Mission:
     AIR_ELIGIBLE: ClassVar[bool] = False
     AIR_RATE_HZ: ClassVar[int] = 0
     USB_RATE_HZ: ClassVar[int] = 20
-    MAX_SIZE: ClassVar[int] = 50
+    MAX_SIZE: ClassVar[int] = 52
     MIN_SIZE: ClassVar[int] = 34
     t_us: int = 0  # [us] 
     setpoint_pos: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m] 
@@ -497,10 +509,12 @@ class Mission:
     index: int = 0
     phase: int = 0
     setpoint_q: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint
+    mission_mode: int = 0  # MissionMode of the active mission (Idle, Initialisation, Startup, Running, Finished), as AIR_MISSION.mission_mode and VEHICLE_STATUS.mission_mode. Missing (older sender) decodes as 0
+    waypoint: int = 0  # current waypoint index, 255 = the active mission is not the waypoint mission (as AIR_MISSION.waypoint). Missing (older sender) decodes as 0, so use mission_mode/VEHICLE_STATUS to know the sender is new
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(50)
+        b = bytearray(52)
         _rt.put(b, '<I', 0, self.t_us)
         if len(self.setpoint_pos) != 3:
             raise ValueError('setpoint_pos needs 3 elements')
@@ -517,6 +531,8 @@ class Mission:
             raise ValueError('setpoint_q needs 4 elements')
         for i, v in enumerate(self.setpoint_q):
             _rt.put_f32(b, 34 + i * 4, v)
+        _rt.put(b, '<B', 50, self.mission_mode)
+        _rt.put(b, '<B', 51, self.waypoint)
         return bytes(b)
 
     @classmethod
@@ -536,6 +552,14 @@ class Mission:
             t.setpoint_q = [_rt.get(data, '<f', 34 + i * 4) for i in range(4)]
         else:
             t.setpoint_q = [float('nan')] * 4
+        if len(data) >= 51:
+            t.mission_mode = _rt.get(data, '<B', 50)
+        else:
+            t.mission_mode = 0
+        if len(data) >= 52:
+            t.waypoint = _rt.get(data, '<B', 51)
+        else:
+            t.waypoint = 0
         return t
 
 

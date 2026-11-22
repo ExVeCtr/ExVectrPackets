@@ -43,7 +43,7 @@ struct VehicleStatus {
     static constexpr bool kAirEligible = true;
     static constexpr uint16_t kAirRateHz = 5;
     static constexpr uint16_t kUsbRateHz = 20;
-    static constexpr size_t kMaxSize = 29;
+    static constexpr size_t kMaxSize = 30;
     static constexpr size_t kMinSize = 28;
     static constexpr uint8_t kFlagsArmed = uint8_t(1u << 0);
     static constexpr uint8_t kFlagsSimulation = uint8_t(1u << 1);
@@ -67,10 +67,11 @@ struct VehicleStatus {
     uint8_t last_req_status = {}; // RequestStatus value of last_req_id
     float rc_age = {}; // [s] age of the last accepted RC_STATE, invalid (NaN) = none
     uint8_t home_epoch = {}; // increments whenever the home reference (HOME_POSITION) changes; the GS requests HOME_POSITION again when it changes. 0 = no home yet. Missing (older sender) decodes as 0
+    uint8_t calib_state = {}; // calibration state bits. bit0 gyro calibration valid, bit1 accel calibration valid, bit2 mag calibration valid, bit3 a calibration session is active (collecting or fitting), bit4 ready to arm (all gates the vehicle applies for Arm and MissionBegin are satisfied), bits 5-7 reserved (zero). Missing (older sender) decodes as 0 = unknown
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 29;
+        constexpr size_t total = 30;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         codec::put_i64(out + 4, t_ns);
@@ -85,6 +86,7 @@ struct VehicleStatus {
         codec::put_u8(out + 25, last_req_status);
         codec::put_u16(out + 26, static_cast<uint16_t>(codec::fixedEncode(rc_age, 0.001, 0LL, 65534LL, 65535LL)));
         codec::put_u8(out + 28, home_epoch);
+        codec::put_u8(out + 29, calib_state);
         return total;
     }
 
@@ -110,6 +112,11 @@ struct VehicleStatus {
         } else {
             t.home_epoch = 0;
         }
+        if (len >= 30) {
+            t.calib_state = codec::get_u8(in + 29);
+        } else {
+            t.calib_state = 0;
+        }
         *this = t;
         return true;
     }
@@ -130,6 +137,7 @@ struct VehicleStatus {
         v.scalar("last_req_status", last_req_status);
         v.scalar("rc_age", rc_age);
         v.scalar("home_epoch", home_epoch);
+        v.scalar("calib_state", calib_state);
         (void)v;
     }
 };
@@ -499,7 +507,7 @@ struct Actuators {
     static constexpr bool kAirEligible = false;
     static constexpr uint16_t kAirRateHz = 0;
     static constexpr uint16_t kUsbRateHz = 50;
-    static constexpr size_t kMaxSize = 36;
+    static constexpr size_t kMaxSize = 40;
     static constexpr size_t kMinSize = 36;
 
     uint32_t t_us = {}; // [us] 
@@ -507,16 +515,18 @@ struct Actuators {
     float tvc[2] = {}; // [rad] thrust vector deflection [x, y]
     float thrust = {}; // [N] 
     float ground_distance = {}; // [m] NaN if unavailable
+    float roll_torque = {}; // [N*m] TVC twist (roll) actuation as the roll torque about body Z the vanes produce (same meaning as AIR_ACTUATORS.roll_torque, unquantised). Missing (older sender) decodes as NaN = unknown
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 36;
+        constexpr size_t total = 40;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         for (size_t i = 0; i < 4; ++i) codec::put_f32(out + 4 + i * 4, flaps[i]);
         for (size_t i = 0; i < 2; ++i) codec::put_f32(out + 20 + i * 4, tvc[i]);
         codec::put_f32(out + 28, thrust);
         codec::put_f32(out + 32, ground_distance);
+        codec::put_f32(out + 36, roll_torque);
         return total;
     }
 
@@ -530,6 +540,11 @@ struct Actuators {
         for (size_t i = 0; i < 2; ++i) t.tvc[i] = codec::get_f32(in + 20 + i * 4);
         t.thrust = codec::get_f32(in + 28);
         t.ground_distance = codec::get_f32(in + 32);
+        if (len >= 40) {
+            t.roll_torque = codec::get_f32(in + 36);
+        } else {
+            t.roll_torque = std::numeric_limits<float>::quiet_NaN();
+        }
         *this = t;
         return true;
     }
@@ -542,6 +557,7 @@ struct Actuators {
         v.array("tvc", tvc);
         v.scalar("thrust", thrust);
         v.scalar("ground_distance", ground_distance);
+        v.scalar("roll_torque", roll_torque);
         (void)v;
     }
 };
@@ -555,7 +571,7 @@ struct Mission {
     static constexpr bool kAirEligible = false;
     static constexpr uint16_t kAirRateHz = 0;
     static constexpr uint16_t kUsbRateHz = 20;
-    static constexpr size_t kMaxSize = 50;
+    static constexpr size_t kMaxSize = 52;
     static constexpr size_t kMinSize = 34;
 
     uint32_t t_us = {}; // [us] 
@@ -565,10 +581,12 @@ struct Mission {
     uint8_t index = {};
     uint8_t phase = {};
     float setpoint_q[4] = {}; // attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint
+    uint8_t mission_mode = {}; // MissionMode of the active mission (Idle, Initialisation, Startup, Running, Finished), as AIR_MISSION.mission_mode and VEHICLE_STATUS.mission_mode. Missing (older sender) decodes as 0
+    uint8_t waypoint = {}; // current waypoint index, 255 = the active mission is not the waypoint mission (as AIR_MISSION.waypoint). Missing (older sender) decodes as 0, so use mission_mode/VEHICLE_STATUS to know the sender is new
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 50;
+        constexpr size_t total = 52;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         for (size_t i = 0; i < 3; ++i) codec::put_f32(out + 4 + i * 4, setpoint_pos[i]);
@@ -577,6 +595,8 @@ struct Mission {
         codec::put_u8(out + 32, index);
         codec::put_u8(out + 33, phase);
         for (size_t i = 0; i < 4; ++i) codec::put_f32(out + 34 + i * 4, setpoint_q[i]);
+        codec::put_u8(out + 50, mission_mode);
+        codec::put_u8(out + 51, waypoint);
         return total;
     }
 
@@ -596,6 +616,16 @@ struct Mission {
         } else {
             for (size_t i = 0; i < 4; ++i) t.setpoint_q[i] = std::numeric_limits<float>::quiet_NaN();
         }
+        if (len >= 51) {
+            t.mission_mode = codec::get_u8(in + 50);
+        } else {
+            t.mission_mode = 0;
+        }
+        if (len >= 52) {
+            t.waypoint = codec::get_u8(in + 51);
+        } else {
+            t.waypoint = 0;
+        }
         *this = t;
         return true;
     }
@@ -610,6 +640,8 @@ struct Mission {
         v.scalar("index", index);
         v.scalar("phase", phase);
         v.array("setpoint_q", setpoint_q);
+        v.scalar("mission_mode", mission_mode);
+        v.scalar("waypoint", waypoint);
         (void)v;
     }
 };

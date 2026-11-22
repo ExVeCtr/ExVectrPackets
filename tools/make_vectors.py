@@ -77,16 +77,20 @@ case("handset_telem_invalid_saturated", "HANDSET_TELEM",
 # ------------------------------------------------------------------ starship
 vs = {"t_us": 4000000000, "t_ns": 4000000000123, "mode": 3, "mission_mode": 2, "mission_phase": 5, "ctrl_source": 1,
       "flags": 0x07, "failure_bits": 0x80000001, "sensor_state": 0x0155, "last_req_id": 0x0102,
-      "last_req_status": 0, "rc_age": 0.02, "home_epoch": 2}
+      "last_req_status": 0, "rc_age": 0.02, "home_epoch": 2, "calib_state": 0x17}
 case("vehicle_status", "VEHICLE_STATUS", vs,
-     P("IqBBBBBIHHBHB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2),
+     P("IqBBBBBIHHBHBB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2, 0x17),
      {**vs, "rc_age": 20 * 0.001})
 case("vehicle_status_no_rc", "VEHICLE_STATUS", {**vs, "rc_age": NAN},
-     P("IqBBBBBIHHBHB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 65535, 2))
+     P("IqBBBBBIHHBHBB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 65535, 2, 0x17))
 # older sender (before home_epoch was appended): the optional tail decodes as 0
 decode_only.append({"name": "vehicle_status_older_sender_no_home_epoch", "packet": "VEHICLE_STATUS",
                     "hex": hexs(P("IqBBBBBIHHBH", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20)),
-                    "decoded": {**vs, "rc_age": 20 * 0.001, "home_epoch": 0}})
+                    "decoded": {**vs, "rc_age": 20 * 0.001, "home_epoch": 0, "calib_state": 0}})
+# older sender (before calib_state was appended, has home_epoch): calib_state decodes as 0 = unknown
+decode_only.append({"name": "vehicle_status_older_sender_no_calib_state", "packet": "VEHICLE_STATUS",
+                    "hex": hexs(P("IqBBBBBIHHBHB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2)),
+                    "decoded": {**vs, "rc_age": 20 * 0.001, "calib_state": 0}})
 q = [32767, -32767, 0, 16384]
 pos = [100, -100, 1234567]  # mm, beyond the old i16 range
 vel = [-327, 0, 1]
@@ -121,17 +125,28 @@ case("air_mission_attitude_setpoint", "AIR_MISSION", amq,
       "setpoint_vel": [0.0, 50 * 0.01, 700 * 0.01], "setpoint_q": [r / 32767 for r in (16384, 16384, -16384, 16384)]})
 pv = {"t_us": 5, "omega": [0.5, -0.25, 1.0], "q": [1.0, 0.0, 0.0, -0.5], "vel": [1.5, 2.5, -3.5], "pos": [10.0, -20.0, 30.5]}
 case("pose", "POSE", pv, P("I3f4f3f3f", 5, *pv["omega"], *pv["q"], *pv["vel"], *pv["pos"]))
-av = {"t_us": 6, "flaps": [0.0, 0.25, 1.5, 0.75], "tvc": [0.125, -0.125], "thrust": 12.5, "ground_distance": NAN}
+av = {"t_us": 6, "flaps": [0.0, 0.25, 1.5, 0.75], "tvc": [0.125, -0.125], "thrust": 12.5, "ground_distance": NAN, "roll_torque": -0.0625}
 case("actuators_no_ground", "ACTUATORS", av,
-     P("I4f2fff", 6, *av["flaps"], *av["tvc"], 12.5, float("nan")))
+     P("I4f2ffff", 6, *av["flaps"], *av["tvc"], 12.5, float("nan"), -0.0625))
+# older sender (before roll_torque was appended): decodes as NaN = unknown
+decode_only.append({"name": "actuators_older_sender_no_roll_torque", "packet": "ACTUATORS",
+                    "hex": hexs(P("I4f2fff", 6, *av["flaps"], *av["tvc"], 12.5, float("nan"))),
+                    "decoded": {**av, "roll_torque": NAN}})
 mv = {"t_us": 7, "setpoint_pos": [1.0, 2.0, 3.0], "setpoint_vel": [0.0, 0.5, -0.5], "mission_time": 12.345, "index": 4, "phase": 2,
-      "setpoint_q": [0.5, -0.5, 0.5, -0.5]}
-case("mission", "MISSION", mv, P("I3f3fiBB4f", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5),
+      "setpoint_q": [0.5, -0.5, 0.5, -0.5], "mission_mode": 3, "waypoint": 2}
+case("mission", "MISSION", mv, P("I3f3fiBB4fBB", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5, 3, 2),
      {**mv, "mission_time": 12345 * 0.001})
 # older sender (before setpoint_q was appended): the optional tail decodes as NaN (= unknown, no setpoint)
 decode_only.append({"name": "mission_older_sender_no_setpoint_q", "packet": "MISSION",
                     "hex": hexs(P("I3f3fiBB", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2)),
-                    "decoded": {**mv, "mission_time": 12345 * 0.001, "setpoint_q": [NAN] * 4}})
+                    "decoded": {**mv, "mission_time": 12345 * 0.001, "setpoint_q": [NAN] * 4, "mission_mode": 0, "waypoint": 0}})
+# older sender (has setpoint_q, before mission_mode and waypoint were appended): both decode as 0
+decode_only.append({"name": "mission_older_sender_no_mode_waypoint", "packet": "MISSION",
+                    "hex": hexs(P("I3f3fiBB4f", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5)),
+                    "decoded": {**mv, "mission_time": 12345 * 0.001, "mission_mode": 0, "waypoint": 0}})
+case("mission_not_waypoint", "MISSION", {**mv, "mission_mode": 4, "waypoint": 255},
+     P("I3f3fiBB4fBB", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5, 4, 255),
+     {**mv, "mission_time": 12345 * 0.001, "mission_mode": 4, "waypoint": 255})
 decode_only.append({"name": "air_mission_older_sender_no_setpoint_q", "packet": "AIR_MISSION",
                     "hex": hexs(P("IiBBBB3i3h", 77, -9500, 1, 1, 1, 255, 0, -1, 120000, 0, 50, 700)),
                     "decoded": {**amv, "mission_time": -9500 * 0.001, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
