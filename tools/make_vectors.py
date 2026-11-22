@@ -75,22 +75,32 @@ case("handset_telem_invalid_saturated", "HANDSET_TELEM",
       "roll": -32767 * 1e-4, "yaw": 32767 * 1e-4, "battery": NAN})
 
 # ------------------------------------------------------------------ starship
+T9B0 = {"ctrl_flags": 0, "go_refusal": 0, "degraded_bits": 0, "mission_profile": 0, "rc_rejected": 0}
 vs = {"t_us": 4000000000, "t_ns": 4000000000123, "mode": 3, "mission_mode": 2, "mission_phase": 5, "ctrl_source": 1,
       "flags": 0x07, "failure_bits": 0x80000001, "sensor_state": 0x0155, "last_req_id": 0x0102,
-      "last_req_status": 0, "rc_age": 0.02, "home_epoch": 2, "calib_state": 0x17}
+      "last_req_status": 0, "rc_age": 0.02, "home_epoch": 2, "calib_state": 0x17,
+      "ctrl_flags": 0x0481, "go_refusal": 3, "degraded_bits": 0x05, "mission_profile": 255, "rc_rejected": 200}
 case("vehicle_status", "VEHICLE_STATUS", vs,
-     P("IqBBBBBIHHBHBB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2, 0x17),
+     P("IqBBBBBIHHBHBBHBBBB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2, 0x17, 0x0481, 3, 5, 255, 200),
      {**vs, "rc_age": 20 * 0.001})
 case("vehicle_status_no_rc", "VEHICLE_STATUS", {**vs, "rc_age": NAN},
-     P("IqBBBBBIHHBHBB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 65535, 2, 0x17))
+     P("IqBBBBBIHHBHBBHBBBB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 65535, 2, 0x17, 0x0481, 3, 5, 255, 200))
 # older sender (before home_epoch was appended): the optional tail decodes as 0
 decode_only.append({"name": "vehicle_status_older_sender_no_home_epoch", "packet": "VEHICLE_STATUS",
                     "hex": hexs(P("IqBBBBBIHHBH", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20)),
-                    "decoded": {**vs, "rc_age": 20 * 0.001, "home_epoch": 0, "calib_state": 0}})
+                    "decoded": {**vs, "rc_age": 20 * 0.001, "home_epoch": 0, "calib_state": 0, **T9B0}})
 # older sender (before calib_state was appended, has home_epoch): calib_state decodes as 0 = unknown
 decode_only.append({"name": "vehicle_status_older_sender_no_calib_state", "packet": "VEHICLE_STATUS",
                     "hex": hexs(P("IqBBBBBIHHBHB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2)),
-                    "decoded": {**vs, "rc_age": 20 * 0.001, "calib_state": 0}})
+                    "decoded": {**vs, "rc_age": 20 * 0.001, "calib_state": 0, **T9B0}})
+# older sender (before the T9b fields were appended, has calib_state): the T9b tail decodes as 0
+decode_only.append({"name": "vehicle_status_older_sender_no_t9b_fields", "packet": "VEHICLE_STATUS",
+                    "hex": hexs(P("IqBBBBBIHHBHBB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2, 0x17)),
+                    "decoded": {**vs, "rc_age": 20 * 0.001, **T9B0}})
+# RC_APPLIED (USB only): decoded switches, safe-seen bits, both source ages (65535 = none), reject counters
+ra = {"t_us": 5000, "sa": 1, "sb": 255, "sc": 2, "sd": 1, "se": 0, "safe_seen": 0x0D, "radio_age": 0.123,
+      "bench_age": NAN, "rejects": [1, 2, 255, 0]}
+case("rc_applied", "RC_APPLIED", ra, P("I5BBHH4B", 5000, 1, 255, 2, 1, 0, 0x0D, 123, 65535, 1, 2, 255, 0))
 q = [32767, -32767, 0, 16384]
 pos = [100, -100, 1234567]  # mm, beyond the old i16 range
 vel = [-327, 0, 1]

@@ -20,9 +20,12 @@ doc = "Starship vehicle telemetry."
 # LINK_REBOOT (11): same semantics (target, always honoured, ACK first, 400 ms delay, idempotent), but the module
 # does a clean software restart instead. A reboot of the RX module in flight stops RC for a few seconds
 # (failsafe): senders must guard it.
+# ZERO_ESTIMATORS (12, T9b): start an estimator zeroing window on the vehicle (what the Zero telecommand did). target = 1
+# (vehicle), arg_f = window in s (NaN or 0: 10 s, clamped 1..60 s), arg_i = 0. Refused unless initialised, disarmed, motors off and in
+# mode Startup or Ready; the vehicle must be still. Idempotent by req_id.
 [enum.RequestAction]
 type = "u8"
-values = { NONE = 0, CALIB_GYRO_START = 1, CALIB_GYRO_STOP = 2, CALIB_ACCEL_START = 3, CALIB_ACCEL_STOP = 4, CALIB_MAG_START = 5, CALIB_MAG_STOP = 6, CALIB_APPLY = 7, SAVE_CONFIG = 8, SYSTEM_RESET = 9, LINK_UPLOAD_MODE = 10, LINK_REBOOT = 11 }
+values = { NONE = 0, CALIB_GYRO_START = 1, CALIB_GYRO_STOP = 2, CALIB_ACCEL_START = 3, CALIB_ACCEL_STOP = 4, CALIB_MAG_START = 5, CALIB_MAG_STOP = 6, CALIB_APPLY = 7, SAVE_CONFIG = 8, SYSTEM_RESET = 9, LINK_UPLOAD_MODE = 10, LINK_REBOOT = 11, ZERO_ESTIMATORS = 12 }
 
 # Frame of the raw sensor values that CALIBRATION applies to (IMU_RAW gyro, accel, mag).
 [enum.ImuFrame]
@@ -49,14 +52,19 @@ fields = [
   { name = "mission_mode",    type = "u8" },
   { name = "mission_phase",   type = "u8" },
   { name = "ctrl_source",     type = "enum", enum = "ControlSource", doc = "active control source" },
-  { name = "flags",           type = "u8", bits = { ARMED = 0, SIMULATION = 1, MOTORS_ENABLED = 2, GS_PRESENT = 3, INCOMPATIBLE = 4, FAILSAFE = 5, UART_PEER_SEEN = 6, ZEROING = 7 }, doc = "ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open. UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it). ZEROING: an estimator zeroing window is active (automatic boot zero or ZeroEstimators); the vehicle must be kept still, Arm and MissionBegin are refused." },
-  { name = "failure_bits",    type = "u32" },
+  { name = "flags",           type = "u8", bits = { ARMED = 0, SIMULATION = 1, MOTORS_ENABLED = 2, GS_PRESENT = 3, INCOMPATIBLE = 4, FAILSAFE = 5, UART_PEER_SEEN = 6, ZEROING = 7 }, doc = "ARMED (redefined by T9b, 2026-11-22): the motor interlock (Pocket switch SD) is open; the vehicle-side arm state is no longer a separate flag. MOTORS_ENABLED: the interlock is open AND the motor outputs are enabled (the hard motor gate is open). UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it). ZEROING: an estimator zeroing window is active (automatic boot zero or ZeroEstimators); the vehicle must be kept still, Arm and MissionBegin are refused." },
+  { name = "failure_bits",    type = "u32", doc = "bit 0 sensor (set for any sensor failsafe, kept for compatibility), 1 attitude, 2 position, 3 position out of bounds, 4 attitude out of bounds, 5 CONTROL_SOURCE_LOST (renamed from radio connection loss: the active RC_STATE source was older than 2 s while committed), 6 GNSS lost (abort to no-position RTH), 7 magnetometer lost (abort to no-position RTH), 8 barometer, 9 gyro, 10 accelerometer, 11 attitude estimate, 12 position estimate, 13 motor-interlock watchdog. Bits 6-13 are defined by T9b; a sender before T9b never sets them. Bits 14..31 are reserved (zero)." },
   { name = "sensor_state",    type = "u16" },
   { name = "last_req_id",     type = "u16", doc = "last executed REQUEST id, 0 = none" },
   { name = "last_req_status", type = "u8", doc = "RequestStatus value of last_req_id" },
   { name = "rc_age",          type = "fixed", wire = "u16", scale = 0.001, unit = "s", doc = "age of the last accepted RC_STATE, invalid (NaN) = none" },
   { name = "home_epoch",      type = "u8", optional = true, doc = "increments whenever the home reference (HOME_POSITION) changes; the GS requests HOME_POSITION again when it changes. 0 = no home yet. Missing (older sender) decodes as 0" },
   { name = "calib_state",     type = "u8", optional = true, doc = "calibration state bits. bit0 gyro calibration valid, bit1 accel calibration valid, bit2 mag calibration valid, bit3 a calibration session is active (collecting or fitting), bit4 ready to arm (all gates the vehicle applies for Arm and MissionBegin are satisfied), bits 5-7 reserved (zero). Missing (older sender) decodes as 0 = unknown" },
+  { name = "ctrl_flags",      type = "u16", optional = true, bits = { INTERLOCK_NEED_TOGGLE = 0, ABORT_LATCHED = 1, FAILSAFE_LATCHED = 2, NOPOS_RTH = 3, SC_MISMATCH = 4, SE_HOLD_ZEROING = 5, SE_REFUSED = 6, RADIO_FRESH = 7, BENCH_FRESH = 8, SOURCE_LATCHED = 9, REQ_QUEUE_FULL = 10 }, doc = "T9b command-path state. INTERLOCK_NEED_TOGGLE: SD must be toggled disabled -> enabled before the interlock opens. ABORT_LATCHED / FAILSAFE_LATCHED: latched until the Pocket SE short press while disarmed on the ground. NOPOS_RTH: the no-position return-to-home is active. SC_MISMATCH: SC differs from the applied mode. SE_HOLD_ZEROING: SE held, zeroing in progress. SE_REFUSED: an SE press was refused (shown for 2 s). RADIO_FRESH / BENCH_FRESH: an accepted RC_STATE from that source is at most 2 s old (also shown for the ignored source). SOURCE_LATCHED: the active source is latched because the vehicle is committed. REQ_QUEUE_FULL: the REQUEST queue is full. Bits 11..15 reserved (zero). Missing (older sender) decodes as 0" },
+  { name = "go_refusal",      type = "u8", optional = true, doc = "reason for the last refused go: 0 none, 1 not Ready, 2 latched abort/failsafe, 3 zeroing window, 4 SC mismatch, 5 SB invalid or profile not implemented, 6 interlock, 7 request in progress. Missing decodes as 0" },
+  { name = "degraded_bits",   type = "u8", optional = true, bits = { TOF_LOST = 0, LINK_STATS_LOST = 1, UART_HEARTBEAT_LOST = 2 }, doc = "degraded warnings (no action taken, not latched): bit 0 ToF ground distance no sample for 1 s while initialised, bit 1 ship-node LINK_STATS on the UART older than 1 s while RADIO is fresh, bit 2 ship-node heartbeat on the UART older than 3 s while RADIO is fresh. Bits 3..7 reserved (zero). Missing decodes as 0" },
+  { name = "mission_profile", type = "u8", optional = true, doc = "SB position latched at the last go (0, 1, 2), 255 = none. NOTE: a missing field (older sender) decodes as 0, indistinguishable from profile 0; use calib_state/ctrl_flags presence via the payload length if that matters" },
+  { name = "rc_rejected",     type = "u8", optional = true, doc = "wrapping count of rejected RC_STATE frames (all reasons, both sources). Missing decodes as 0" },
 ]
 
 [packet.AIR_POSE]
@@ -180,6 +188,25 @@ fields = [
   { name = "setpoint_q",   type = "f32", count = 4, optional = true, doc = "attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint" },
   { name = "mission_mode", type = "u8", optional = true, doc = "MissionMode of the active mission (Idle, Initialisation, Startup, Running, Finished), as AIR_MISSION.mission_mode and VEHICLE_STATUS.mission_mode. Missing (older sender) decodes as 0" },
   { name = "waypoint",     type = "u8", optional = true, doc = "current waypoint index, 255 = the active mission is not the waypoint mission (as AIR_MISSION.waypoint). Missing (older sender) decodes as 0, so use mission_mode/VEHICLE_STATUS to know the sender is new" },
+]
+
+[packet.RC_APPLIED]
+port = 0x84
+qos = "telemetry"
+latest = true
+rate_usb = 10
+doc = "T9b, USB only (no air cost): the RC_STATE switch positions as the vehicle decodes them (channel table, flight-software docs), the transition detectors' safe-seen bits, the age of both control sources and the RC_STATE reject counters. For bench debugging of the Pocket mapping."
+fields = [
+  { name = "t_us",       type = "u32", unit = "us" },
+  { name = "sa",         type = "u8", doc = "SA decoded: 0 NOT_GO, 1 GO (invalid decodes to 0)" },
+  { name = "sb",         type = "u8", doc = "SB decoded: 0, 1, 2, 255 = invalid" },
+  { name = "sc",         type = "u8", doc = "SC decoded: 0 sim, 1 real, 2 reserved, 255 = invalid" },
+  { name = "sd",         type = "u8", doc = "SD decoded: 0 DISABLED, 1 ENABLED (invalid decodes to 0)" },
+  { name = "se",         type = "u8", doc = "SE decoded: 0 RELEASED, 1 PRESSED (invalid decodes to 0)" },
+  { name = "safe_seen",  type = "u8", bits = { GO = 0, SC_REAL = 1, SD_ENABLE = 2, SE_PRESS = 3 }, doc = "each unsafe-direction detector's 'safe value seen' bit (set: an edge may be reported). Bits 4..7 reserved" },
+  { name = "radio_age",  type = "fixed", wire = "u16", scale = 0.001, unit = "s", doc = "age of the last accepted RC_STATE from the RADIO source, invalid (NaN) = none" },
+  { name = "bench_age",  type = "fixed", wire = "u16", scale = 0.001, unit = "s", doc = "age of the last accepted RC_STATE from the USB (bench) source, invalid (NaN) = none" },
+  { name = "rejects",    type = "u8", count = 4, doc = "wrapping reject counters per reason: [0] bad length or undecodable, [1] source (src, link) not in the table, [2] stale or repeated sequence, [3] SOURCE_OK clear" },
 ]
 
 [packet.GNSS]

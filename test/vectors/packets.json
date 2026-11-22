@@ -267,9 +267,14 @@
     "last_req_status": 0,
     "rc_age": 0.02,
     "home_epoch": 2,
-    "calib_state": 23
+    "calib_state": 23,
+    "ctrl_flags": 1153,
+    "go_refusal": 3,
+    "degraded_bits": 5,
+    "mission_profile": 255,
+    "rc_rejected": 200
    },
-   "hex": "00286bee7b409452a3030000030205010701000080550102010014000217",
+   "hex": "00286bee7b409452a303000003020501070100008055010201001400021781040305ffc8",
    "decoded": {
     "t_us": 4000000000,
     "t_ns": 4000000000123,
@@ -284,7 +289,12 @@
     "last_req_status": 0,
     "rc_age": 0.02,
     "home_epoch": 2,
-    "calib_state": 23
+    "calib_state": 23,
+    "ctrl_flags": 1153,
+    "go_refusal": 3,
+    "degraded_bits": 5,
+    "mission_profile": 255,
+    "rc_rejected": 200
    }
   },
   {
@@ -304,9 +314,36 @@
     "last_req_status": 0,
     "rc_age": null,
     "home_epoch": 2,
-    "calib_state": 23
+    "calib_state": 23,
+    "ctrl_flags": 1153,
+    "go_refusal": 3,
+    "degraded_bits": 5,
+    "mission_profile": 255,
+    "rc_rejected": 200
    },
-   "hex": "00286bee7b409452a30300000302050107010000805501020100ffff0217"
+   "hex": "00286bee7b409452a30300000302050107010000805501020100ffff021781040305ffc8"
+  },
+  {
+   "name": "rc_applied",
+   "packet": "RC_APPLIED",
+   "values": {
+    "t_us": 5000,
+    "sa": 1,
+    "sb": 255,
+    "sc": 2,
+    "sd": 1,
+    "se": 0,
+    "safe_seen": 13,
+    "radio_age": 0.123,
+    "bench_age": null,
+    "rejects": [
+     1,
+     2,
+     255,
+     0
+    ]
+   },
+   "hex": "8813000001ff0201000d7b00ffff0102ff00"
   },
   {
    "name": "air_pose",
@@ -2729,7 +2766,12 @@
     "last_req_status": 0,
     "rc_age": 0.02,
     "home_epoch": 0,
-    "calib_state": 0
+    "calib_state": 0,
+    "ctrl_flags": 0,
+    "go_refusal": 0,
+    "degraded_bits": 0,
+    "mission_profile": 0,
+    "rc_rejected": 0
    }
   },
   {
@@ -2750,7 +2792,38 @@
     "last_req_status": 0,
     "rc_age": 0.02,
     "home_epoch": 2,
-    "calib_state": 0
+    "calib_state": 0,
+    "ctrl_flags": 0,
+    "go_refusal": 0,
+    "degraded_bits": 0,
+    "mission_profile": 0,
+    "rc_rejected": 0
+   }
+  },
+  {
+   "name": "vehicle_status_older_sender_no_t9b_fields",
+   "packet": "VEHICLE_STATUS",
+   "hex": "00286bee7b409452a3030000030205010701000080550102010014000217",
+   "decoded": {
+    "t_us": 4000000000,
+    "t_ns": 4000000000123,
+    "mode": 3,
+    "mission_mode": 2,
+    "mission_phase": 5,
+    "ctrl_source": 1,
+    "flags": 7,
+    "failure_bits": 2147483649,
+    "sensor_state": 341,
+    "last_req_id": 258,
+    "last_req_status": 0,
+    "rc_age": 0.02,
+    "home_epoch": 2,
+    "calib_state": 23,
+    "ctrl_flags": 0,
+    "go_refusal": 0,
+    "degraded_bits": 0,
+    "mission_profile": 0,
+    "rc_rejected": 0
    }
   },
   {

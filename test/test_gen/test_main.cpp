@@ -272,7 +272,7 @@ static const Ops kOps[] = {
     OPS("HEARTBEAT", Heartbeat), OPS("LINK_STATS", LinkStats), OPS("LOG_TEXT", LogText), OPS("LINK_CONFIG", LinkConfig),
     OPS("HANDSET_TELEM", HandsetTelem), OPS("RC_STATE", RcState), OPS("REQUEST", Request),
     OPS("REQUEST_ACK", RequestAck), OPS("VEHICLE_STATUS", VehicleStatus), OPS("AIR_POSE", AirPose), OPS("AIR_ACTUATORS", AirActuators), OPS("AIR_MISSION", AirMission), OPS("AIR_GNSS", AirGnss), OPS("AIR_GNSS_INFO", AirGnssInfo), OPS("HOME_POSITION", HomePosition),
-    OPS("POSE", Pose), OPS("ACTUATORS", Actuators), OPS("MISSION", Mission), OPS("GNSS", Gnss),
+    OPS("POSE", Pose), OPS("ACTUATORS", Actuators), OPS("MISSION", Mission), OPS("GNSS", Gnss), OPS("RC_APPLIED", RcApplied),
     OPS("IMU_RAW", ImuRaw), OPS("ESTIMATOR", Estimator), OPS("TASK_TIMING", TaskTiming), OPS("CALIBRATION", Calibration),
     OPS("KITCHEN_SINK", KitchenSink), OPS("OPTIONAL_TEST", OptionalTest),
 };
@@ -387,7 +387,7 @@ static void test_metadata_constants() {
     TEST_ASSERT_EQUAL(0x25, AirGnssInfo::kPort);
     TEST_ASSERT_EQUAL(10, AirGnssInfo::kMaxSize);
     TEST_ASSERT_EQUAL_UINT16(1, AirGnssInfo::kAirRateHz);
-    TEST_ASSERT_EQUAL(30, VehicleStatus::kMaxSize);
+    TEST_ASSERT_EQUAL(36, VehicleStatus::kMaxSize);
     TEST_ASSERT_EQUAL(28, VehicleStatus::kMinSize);
     TEST_ASSERT_EQUAL_UINT16(10, Gnss::kUsbRateHz);
     TEST_ASSERT_EQUAL(0x50, HomePosition::kPort);

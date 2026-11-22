@@ -19,6 +19,7 @@ class RequestAction(enum.IntEnum):
     SYSTEM_RESET = 9
     LINK_UPLOAD_MODE = 10
     LINK_REBOOT = 11
+    ZERO_ESTIMATORS = 12
 
 
 class ImuFrame(enum.IntEnum):
@@ -43,7 +44,7 @@ class VehicleStatus:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 5
     USB_RATE_HZ: ClassVar[int] = 20
-    MAX_SIZE: ClassVar[int] = 30
+    MAX_SIZE: ClassVar[int] = 36
     MIN_SIZE: ClassVar[int] = 28
     FLAGS_ARMED: ClassVar[int] = 1
     FLAGS_SIMULATION: ClassVar[int] = 2
@@ -53,24 +54,43 @@ class VehicleStatus:
     FLAGS_FAILSAFE: ClassVar[int] = 32
     FLAGS_UART_PEER_SEEN: ClassVar[int] = 64
     FLAGS_ZEROING: ClassVar[int] = 128
+    CTRL_FLAGS_INTERLOCK_NEED_TOGGLE: ClassVar[int] = 1
+    CTRL_FLAGS_ABORT_LATCHED: ClassVar[int] = 2
+    CTRL_FLAGS_FAILSAFE_LATCHED: ClassVar[int] = 4
+    CTRL_FLAGS_NOPOS_RTH: ClassVar[int] = 8
+    CTRL_FLAGS_SC_MISMATCH: ClassVar[int] = 16
+    CTRL_FLAGS_SE_HOLD_ZEROING: ClassVar[int] = 32
+    CTRL_FLAGS_SE_REFUSED: ClassVar[int] = 64
+    CTRL_FLAGS_RADIO_FRESH: ClassVar[int] = 128
+    CTRL_FLAGS_BENCH_FRESH: ClassVar[int] = 256
+    CTRL_FLAGS_SOURCE_LATCHED: ClassVar[int] = 512
+    CTRL_FLAGS_REQ_QUEUE_FULL: ClassVar[int] = 1024
+    DEGRADED_BITS_TOF_LOST: ClassVar[int] = 1
+    DEGRADED_BITS_LINK_STATS_LOST: ClassVar[int] = 2
+    DEGRADED_BITS_UART_HEARTBEAT_LOST: ClassVar[int] = 4
     t_us: int = 0  # [us] vehicle time, (NowNs/1000) mod 2^32
     t_ns: int = 0  # [ns] full vehicle time NowNs()
     mode: int = 0  # flight software mode (numbering owned by the flight software docs)
     mission_mode: int = 0
     mission_phase: int = 0
     ctrl_source: ControlSource = 0  # active control source
-    flags: int = 0  # ARMED: applied arm state. MOTORS_ENABLED: the hard motor gate is currently open. UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it). ZEROING: an estimator zeroing window is active (automatic boot zero or ZeroEstimators); the vehicle must be kept still, Arm and MissionBegin are refused.
-    failure_bits: int = 0
+    flags: int = 0  # ARMED (redefined by T9b, 2026-11-22): the motor interlock (Pocket switch SD) is open; the vehicle-side arm state is no longer a separate flag. MOTORS_ENABLED: the interlock is open AND the motor outputs are enabled (the hard motor gate is open). UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it). ZEROING: an estimator zeroing window is active (automatic boot zero or ZeroEstimators); the vehicle must be kept still, Arm and MissionBegin are refused.
+    failure_bits: int = 0  # bit 0 sensor (set for any sensor failsafe, kept for compatibility), 1 attitude, 2 position, 3 position out of bounds, 4 attitude out of bounds, 5 CONTROL_SOURCE_LOST (renamed from radio connection loss: the active RC_STATE source was older than 2 s while committed), 6 GNSS lost (abort to no-position RTH), 7 magnetometer lost (abort to no-position RTH), 8 barometer, 9 gyro, 10 accelerometer, 11 attitude estimate, 12 position estimate, 13 motor-interlock watchdog. Bits 6-13 are defined by T9b; a sender before T9b never sets them. Bits 14..31 are reserved (zero).
     sensor_state: int = 0
     last_req_id: int = 0  # last executed REQUEST id, 0 = none
     last_req_status: int = 0  # RequestStatus value of last_req_id
     rc_age: float = 0.0  # [s] age of the last accepted RC_STATE, invalid (NaN) = none
     home_epoch: int = 0  # increments whenever the home reference (HOME_POSITION) changes; the GS requests HOME_POSITION again when it changes. 0 = no home yet. Missing (older sender) decodes as 0
     calib_state: int = 0  # calibration state bits. bit0 gyro calibration valid, bit1 accel calibration valid, bit2 mag calibration valid, bit3 a calibration session is active (collecting or fitting), bit4 ready to arm (all gates the vehicle applies for Arm and MissionBegin are satisfied), bits 5-7 reserved (zero). Missing (older sender) decodes as 0 = unknown
+    ctrl_flags: int = 0  # T9b command-path state. INTERLOCK_NEED_TOGGLE: SD must be toggled disabled -> enabled before the interlock opens. ABORT_LATCHED / FAILSAFE_LATCHED: latched until the Pocket SE short press while disarmed on the ground. NOPOS_RTH: the no-position return-to-home is active. SC_MISMATCH: SC differs from the applied mode. SE_HOLD_ZEROING: SE held, zeroing in progress. SE_REFUSED: an SE press was refused (shown for 2 s). RADIO_FRESH / BENCH_FRESH: an accepted RC_STATE from that source is at most 2 s old (also shown for the ignored source). SOURCE_LATCHED: the active source is latched because the vehicle is committed. REQ_QUEUE_FULL: the REQUEST queue is full. Bits 11..15 reserved (zero). Missing (older sender) decodes as 0
+    go_refusal: int = 0  # reason for the last refused go: 0 none, 1 not Ready, 2 latched abort/failsafe, 3 zeroing window, 4 SC mismatch, 5 SB invalid or profile not implemented, 6 interlock, 7 request in progress. Missing decodes as 0
+    degraded_bits: int = 0  # degraded warnings (no action taken, not latched): bit 0 ToF ground distance no sample for 1 s while initialised, bit 1 ship-node LINK_STATS on the UART older than 1 s while RADIO is fresh, bit 2 ship-node heartbeat on the UART older than 3 s while RADIO is fresh. Bits 3..7 reserved (zero). Missing decodes as 0
+    mission_profile: int = 0  # SB position latched at the last go (0, 1, 2), 255 = none. NOTE: a missing field (older sender) decodes as 0, indistinguishable from profile 0; use calib_state/ctrl_flags presence via the payload length if that matters
+    rc_rejected: int = 0  # wrapping count of rejected RC_STATE frames (all reasons, both sources). Missing decodes as 0
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(30)
+        b = bytearray(36)
         _rt.put(b, '<I', 0, self.t_us)
         _rt.put(b, '<q', 4, self.t_ns)
         _rt.put(b, '<B', 12, self.mode)
@@ -85,6 +105,11 @@ class VehicleStatus:
         _rt.put_fixed(b, '<H', 26, self.rc_age, 0.001, 0, 65534, 65535)
         _rt.put(b, '<B', 28, self.home_epoch)
         _rt.put(b, '<B', 29, self.calib_state)
+        _rt.put(b, '<H', 30, self.ctrl_flags)
+        _rt.put(b, '<B', 32, self.go_refusal)
+        _rt.put(b, '<B', 33, self.degraded_bits)
+        _rt.put(b, '<B', 34, self.mission_profile)
+        _rt.put(b, '<B', 35, self.rc_rejected)
         return bytes(b)
 
     @classmethod
@@ -114,6 +139,26 @@ class VehicleStatus:
             t.calib_state = _rt.get(data, '<B', 29)
         else:
             t.calib_state = 0
+        if len(data) >= 32:
+            t.ctrl_flags = _rt.get(data, '<H', 30)
+        else:
+            t.ctrl_flags = 0
+        if len(data) >= 33:
+            t.go_refusal = _rt.get(data, '<B', 32)
+        else:
+            t.go_refusal = 0
+        if len(data) >= 34:
+            t.degraded_bits = _rt.get(data, '<B', 33)
+        else:
+            t.degraded_bits = 0
+        if len(data) >= 35:
+            t.mission_profile = _rt.get(data, '<B', 34)
+        else:
+            t.mission_profile = 0
+        if len(data) >= 36:
+            t.rc_rejected = _rt.get(data, '<B', 35)
+        else:
+            t.rc_rejected = 0
         return t
 
 
@@ -560,6 +605,71 @@ class Mission:
             t.waypoint = _rt.get(data, '<B', 51)
         else:
             t.waypoint = 0
+        return t
+
+
+@dataclasses.dataclass
+class RcApplied:
+    """T9b, USB only (no air cost): the RC_STATE switch positions as the vehicle decodes them (channel table, flight-software docs), the transition detectors' safe-seen bits, the age of both control sources and the RC_STATE reject counters. For bench debugging of the Pocket mapping."""
+    PORT: ClassVar[Optional[int]] = 0x84
+    IS_HEARTBEAT: ClassVar[bool] = False
+    QOS: ClassVar[int] = 3  # telemetry
+    LATEST: ClassVar[bool] = True
+    AIR_ELIGIBLE: ClassVar[bool] = False
+    AIR_RATE_HZ: ClassVar[int] = 0
+    USB_RATE_HZ: ClassVar[int] = 10
+    MAX_SIZE: ClassVar[int] = 18
+    MIN_SIZE: ClassVar[int] = 18
+    SAFE_SEEN_GO: ClassVar[int] = 1
+    SAFE_SEEN_SC_REAL: ClassVar[int] = 2
+    SAFE_SEEN_SD_ENABLE: ClassVar[int] = 4
+    SAFE_SEEN_SE_PRESS: ClassVar[int] = 8
+    t_us: int = 0  # [us] 
+    sa: int = 0  # SA decoded: 0 NOT_GO, 1 GO (invalid decodes to 0)
+    sb: int = 0  # SB decoded: 0, 1, 2, 255 = invalid
+    sc: int = 0  # SC decoded: 0 sim, 1 real, 2 reserved, 255 = invalid
+    sd: int = 0  # SD decoded: 0 DISABLED, 1 ENABLED (invalid decodes to 0)
+    se: int = 0  # SE decoded: 0 RELEASED, 1 PRESSED (invalid decodes to 0)
+    safe_seen: int = 0  # each unsafe-direction detector's 'safe value seen' bit (set: an edge may be reported). Bits 4..7 reserved
+    radio_age: float = 0.0  # [s] age of the last accepted RC_STATE from the RADIO source, invalid (NaN) = none
+    bench_age: float = 0.0  # [s] age of the last accepted RC_STATE from the USB (bench) source, invalid (NaN) = none
+    rejects: list[int] = dataclasses.field(default_factory=lambda: [0] * 4)  # wrapping reject counters per reason: [0] bad length or undecodable, [1] source (src, link) not in the table, [2] stale or repeated sequence, [3] SOURCE_OK clear
+
+    def encode(self) -> bytes:
+        """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
+        b = bytearray(18)
+        _rt.put(b, '<I', 0, self.t_us)
+        _rt.put(b, '<B', 4, self.sa)
+        _rt.put(b, '<B', 5, self.sb)
+        _rt.put(b, '<B', 6, self.sc)
+        _rt.put(b, '<B', 7, self.sd)
+        _rt.put(b, '<B', 8, self.se)
+        _rt.put(b, '<B', 9, self.safe_seen)
+        _rt.put_fixed(b, '<H', 10, self.radio_age, 0.001, 0, 65534, 65535)
+        _rt.put_fixed(b, '<H', 12, self.bench_age, 0.001, 0, 65534, 65535)
+        if len(self.rejects) != 4:
+            raise ValueError('rejects needs 4 elements')
+        for i, v in enumerate(self.rejects):
+            _rt.put(b, '<B', 14 + i * 1, v)
+        return bytes(b)
+
+    @classmethod
+    def decode(cls, data) -> "RcApplied":
+        """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
+        data = bytes(data)
+        if len(data) < cls.MIN_SIZE:
+            raise ValueError('RC_APPLIED: payload too short (%d < 18)' % len(data))
+        t = cls()
+        t.t_us = _rt.get(data, '<I', 0)
+        t.sa = _rt.get(data, '<B', 4)
+        t.sb = _rt.get(data, '<B', 5)
+        t.sc = _rt.get(data, '<B', 6)
+        t.sd = _rt.get(data, '<B', 7)
+        t.se = _rt.get(data, '<B', 8)
+        t.safe_seen = _rt.get(data, '<B', 9)
+        t.radio_age = _rt.get_fixed(data, '<H', 10, 0.001, 65535)
+        t.bench_age = _rt.get_fixed(data, '<H', 12, 0.001, 65535)
+        t.rejects = [_rt.get(data, '<B', 14 + i * 1) for i in range(4)]
         return t
 
 
