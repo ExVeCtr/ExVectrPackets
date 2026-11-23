@@ -45,6 +45,8 @@ case("request_link_reboot", "REQUEST", {"req_id": 6, "action": 11, "target": 2, 
      P("HBBifI", 6, 11, 2, 0, 0.0, 0))
 case("request_vehicle_session", "REQUEST", {"req_id": 9, "action": 12, "target": 1, "arg_i": 0, "arg_f": 10.0, "session": 1},
      P("HBBifI", 9, 12, 1, 0, 10.0, 1))
+case("request_set_stop_altitude", "REQUEST", {"req_id": 10, "action": 13, "target": 1, "arg_i": 0, "arg_f": 2.5, "session": 77},
+     P("HBBifI", 10, 13, 1, 0, 2.5, 77))
 decode_only.append({"name": "request_older_sender_no_session", "packet": "REQUEST",
                     "hex": hexs(P("HBBif", 0x0102, 7, 2, -5, 1.5)),
                     "decoded": {"req_id": 0x0102, "action": 7, "target": 2, "arg_i": -5, "arg_f": 1.5, "session": 0}})

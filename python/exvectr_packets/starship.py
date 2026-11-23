@@ -20,6 +20,7 @@ class RequestAction(enum.IntEnum):
     LINK_UPLOAD_MODE = 10
     LINK_REBOOT = 11
     ZERO_ESTIMATORS = 12
+    SET_STOP_ALTITUDE = 13
 
 
 class ImuFrame(enum.IntEnum):

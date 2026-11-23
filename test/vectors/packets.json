@@ -88,6 +88,19 @@
    "hex": "09000c01000000000000204101000000"
   },
   {
+   "name": "request_set_stop_altitude",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 10,
+    "action": 13,
+    "target": 1,
+    "arg_i": 0,
+    "arg_f": 2.5,
+    "session": 77
+   },
+   "hex": "0a000d0100000000000020404d000000"
+  },
+  {
    "name": "rc_state",
    "packet": "RC_STATE",
    "values": {

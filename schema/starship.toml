@@ -23,9 +23,18 @@ doc = "Starship vehicle telemetry."
 # ZERO_ESTIMATORS (12, T9b): start an estimator zeroing window on the vehicle (what the Zero telecommand did). target = 1
 # (vehicle), arg_f = window in s (NaN or 0: 10 s, clamped 1..60 s), arg_i = 0. Refused unless initialised, disarmed, motors off and in
 # mode Startup or Ready; the vehicle must be still. Idempotent by req_id.
+# SET_STOP_ALTITUDE (13, T9b-5): set the descent stop altitude (what the SetStopAltitude telecommand did). target = 1 (vehicle only),
+# arg_f = stop altitude in m (finite, >= 1.0), arg_i = 0. Accepted only on the ground (disarmed, not committed) and only from the
+# latched CMD_STATE session (REQUEST.session). Echoed in MISSION.stop_altitude. Idempotent by (src, req_id).
+# REQUEST_HOME_POSITION is NOT an action: HOME_POSITION is read through request channel 0x50 (empty args).
+# Vehicle-directed (target 1) refusal codes in REQUEST_ACK (every copy is acked): REJECTED_STATE detail 1 = not on the ground
+# (armed, committed or in flight), detail 2 = ZERO_ESTIMATORS-specific state refusal (not initialised / not Startup or Ready /
+# motors on), detail 3 = REQUEST.session is 0 or differs from the latched session (or no session latched);
+# REJECTED_INVALID detail 1 = argument out of range (NaN, < 1.0 for SET_STOP_ALTITUDE), detail 2 = wrong target;
+# unknown action = REJECTED_INVALID detail 3. DONE detail = 0.
 [enum.RequestAction]
 type = "u8"
-values = { NONE = 0, CALIB_GYRO_START = 1, CALIB_GYRO_STOP = 2, CALIB_ACCEL_START = 3, CALIB_ACCEL_STOP = 4, CALIB_MAG_START = 5, CALIB_MAG_STOP = 6, CALIB_APPLY = 7, SAVE_CONFIG = 8, SYSTEM_RESET = 9, LINK_UPLOAD_MODE = 10, LINK_REBOOT = 11, ZERO_ESTIMATORS = 12 }
+values = { NONE = 0, CALIB_GYRO_START = 1, CALIB_GYRO_STOP = 2, CALIB_ACCEL_START = 3, CALIB_ACCEL_STOP = 4, CALIB_MAG_START = 5, CALIB_MAG_STOP = 6, CALIB_APPLY = 7, SAVE_CONFIG = 8, SYSTEM_RESET = 9, LINK_UPLOAD_MODE = 10, LINK_REBOOT = 11, ZERO_ESTIMATORS = 12, SET_STOP_ALTITUDE = 13 }
 
 # Frame of the raw sensor values that CALIBRATION applies to (IMU_RAW gyro, accel, mag).
 [enum.ImuFrame]

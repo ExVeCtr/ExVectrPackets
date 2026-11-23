@@ -21,6 +21,7 @@ enum class RequestAction : uint8_t {
     kLinkUploadMode = 10,
     kLinkReboot = 11,
     kZeroEstimators = 12,
+    kSetStopAltitude = 13,
 };
 
 enum class ImuFrame : uint8_t {
