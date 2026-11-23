@@ -411,7 +411,7 @@ class AirMission:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 5
     USB_RATE_HZ: ClassVar[int] = 0
-    MAX_SIZE: ClassVar[int] = 38
+    MAX_SIZE: ClassVar[int] = 42
     MIN_SIZE: ClassVar[int] = 30
     t_us: int = 0  # [us] 
     mission_time: float = 0.0  # [s] mission time as MISSION.mission_time, negative during the countdown
@@ -422,10 +422,12 @@ class AirMission:
     setpoint_pos: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m] guidance position setpoint, NWU, 1 mm resolution (as AIR_POSE.pos)
     setpoint_vel: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m/s] guidance velocity setpoint, NWU, +-327.66 m/s (as AIR_POSE.vel)
     setpoint_q: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as AIR_POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint
+    flip_start_altitude: float = 0.0  # [m] estimated altitude above the position reference (NWU up) at which the upright (flip) manoeuvre will begin, = the vehicle's getStopAltitude() = stopDist(Vz) + stop_altitude, re-estimated continuously. Sent only during the bellyflop freefall phase, otherwise NaN (wire sentinel -32768). 0.1 m steps, +-3276.7 m. Missing (older sender) = NaN
+    stop_altitude: float = 0.0  # [m] current value of the stop altitude parameter (altitude above the position reference where the vehicle ends up stopped, default 20 m, settable 5..60 m with the SetStopAltitude telecommand while on the ground). Always sent, the echo that confirms a setting. NaN (wire sentinel -32768) = unknown / missing (older sender)
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(38)
+        b = bytearray(42)
         _rt.put(b, '<I', 0, self.t_us)
         _rt.put_fixed(b, '<i', 4, self.mission_time, 0.001, -2147483647, 2147483647, -2147483648)
         _rt.put(b, '<B', 8, self.mission_mode)
@@ -444,6 +446,8 @@ class AirMission:
             raise ValueError('setpoint_q needs 4 elements')
         for i, v in enumerate(self.setpoint_q):
             _rt.put_fixed(b, '<h', 30 + i * 2, v, 3.051850947599719e-05, -32767, 32767, -32768)
+        _rt.put_fixed(b, '<h', 38, self.flip_start_altitude, 0.1, -32767, 32767, -32768)
+        _rt.put_fixed(b, '<h', 40, self.stop_altitude, 0.1, -32767, 32767, -32768)
         return bytes(b)
 
     @classmethod
@@ -465,6 +469,14 @@ class AirMission:
             t.setpoint_q = [_rt.get_fixed(data, '<h', 30 + i * 2, 3.051850947599719e-05, -32768) for i in range(4)]
         else:
             t.setpoint_q = [float('nan')] * 4
+        if len(data) >= 40:
+            t.flip_start_altitude = _rt.get_fixed(data, '<h', 38, 0.1, -32768)
+        else:
+            t.flip_start_altitude = float('nan')
+        if len(data) >= 42:
+            t.stop_altitude = _rt.get_fixed(data, '<h', 40, 0.1, -32768)
+        else:
+            t.stop_altitude = float('nan')
         return t
 
 
@@ -677,7 +689,7 @@ class Mission:
     AIR_ELIGIBLE: ClassVar[bool] = False
     AIR_RATE_HZ: ClassVar[int] = 0
     USB_RATE_HZ: ClassVar[int] = 20
-    MAX_SIZE: ClassVar[int] = 52
+    MAX_SIZE: ClassVar[int] = 60
     MIN_SIZE: ClassVar[int] = 34
     t_us: int = 0  # [us] 
     setpoint_pos: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m] 
@@ -688,10 +700,12 @@ class Mission:
     setpoint_q: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint
     mission_mode: int = 0  # MissionMode of the active mission (Idle, Initialisation, Startup, Running, Finished), as AIR_MISSION.mission_mode and VEHICLE_STATUS.mission_mode. Missing (older sender) decodes as 0
     waypoint: int = 0  # current waypoint index, 255 = the active mission is not the waypoint mission (as AIR_MISSION.waypoint). Missing (older sender) decodes as 0, so use mission_mode/VEHICLE_STATUS to know the sender is new
+    flip_start_altitude: float = 0.0  # [m] estimated altitude above the position reference (NWU up) at which the upright (flip) manoeuvre will begin, = the vehicle's getStopAltitude() = stopDist(Vz) + stop_altitude, re-estimated continuously. Sent only during the bellyflop freefall phase, otherwise NaN. Missing (older sender) = NaN
+    stop_altitude: float = 0.0  # [m] current value of the stop altitude parameter (altitude above the position reference where the vehicle ends up stopped, default 20 m, settable 5..60 m with the SetStopAltitude telecommand while on the ground). Always sent, the echo that confirms a setting. NaN = unknown / missing (older sender)
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(52)
+        b = bytearray(60)
         _rt.put(b, '<I', 0, self.t_us)
         if len(self.setpoint_pos) != 3:
             raise ValueError('setpoint_pos needs 3 elements')
@@ -710,6 +724,8 @@ class Mission:
             _rt.put_f32(b, 34 + i * 4, v)
         _rt.put(b, '<B', 50, self.mission_mode)
         _rt.put(b, '<B', 51, self.waypoint)
+        _rt.put_f32(b, 52, self.flip_start_altitude)
+        _rt.put_f32(b, 56, self.stop_altitude)
         return bytes(b)
 
     @classmethod
@@ -737,6 +753,14 @@ class Mission:
             t.waypoint = _rt.get(data, '<B', 51)
         else:
             t.waypoint = 0
+        if len(data) >= 56:
+            t.flip_start_altitude = _rt.get(data, '<f', 52)
+        else:
+            t.flip_start_altitude = float('nan')
+        if len(data) >= 60:
+            t.stop_altitude = _rt.get(data, '<f', 56)
+        else:
+            t.stop_altitude = float('nan')
         return t
 
 

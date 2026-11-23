@@ -562,9 +562,11 @@
      0.0,
      0.0,
      0.0
-    ]
+    ],
+    "flip_start_altitude": 123.4,
+    "stop_altitude": 20.0
    },
-   "hex": "4d000000e4daffff010101ff00000000ffffffffc0d4010000003200bc020000000000000000",
+   "hex": "4d000000e4daffff010101ff00000000ffffffffc0d4010000003200bc020000000000000000d204c800",
    "decoded": {
     "t_us": 77,
     "mission_time": -9.5,
@@ -587,7 +589,9 @@
      0.0,
      0.0,
      0.0
-    ]
+    ],
+    "flip_start_altitude": 123.4,
+    "stop_altitude": 20.0
    }
   },
   {
@@ -615,9 +619,11 @@
      0.5,
      -0.5,
      0.5
-    ]
+    ],
+    "flip_start_altitude": null,
+    "stop_altitude": 60.0
    },
-   "hex": "4d000000e4daffff0202010300000000ffffffffc0d4010000003200bc020040004000c00040",
+   "hex": "4d000000e4daffff0202010300000000ffffffffc0d4010000003200bc020040004000c0004000805802",
    "decoded": {
     "t_us": 77,
     "mission_time": -9.5,
@@ -640,7 +646,9 @@
      0.500015259254738,
      -0.500015259254738,
      0.500015259254738
-    ]
+    ],
+    "flip_start_altitude": null,
+    "stop_altitude": 60.0
    }
   },
   {
@@ -718,9 +726,11 @@
      -0.5
     ],
     "mission_mode": 3,
-    "waypoint": 2
+    "waypoint": 2,
+    "flip_start_altitude": 87.5,
+    "stop_altitude": 20.0
    },
-   "hex": "070000000000803f0000004000004040000000000000003f000000bf3930000004020000003f000000bf0000003f000000bf0302",
+   "hex": "070000000000803f0000004000004040000000000000003f000000bf3930000004020000003f000000bf0000003f000000bf03020000af420000a041",
    "decoded": {
     "t_us": 7,
     "setpoint_pos": [
@@ -743,7 +753,9 @@
      -0.5
     ],
     "mission_mode": 3,
-    "waypoint": 2
+    "waypoint": 2,
+    "flip_start_altitude": 87.5,
+    "stop_altitude": 20.0
    }
   },
   {
@@ -771,9 +783,11 @@
      -0.5
     ],
     "mission_mode": 4,
-    "waypoint": 255
+    "waypoint": 255,
+    "flip_start_altitude": 87.5,
+    "stop_altitude": 20.0
    },
-   "hex": "070000000000803f0000004000004040000000000000003f000000bf3930000004020000003f000000bf0000003f000000bf04ff",
+   "hex": "070000000000803f0000004000004040000000000000003f000000bf3930000004020000003f000000bf0000003f000000bf04ff0000af420000a041",
    "decoded": {
     "t_us": 7,
     "setpoint_pos": [
@@ -796,7 +810,9 @@
      -0.5
     ],
     "mission_mode": 4,
-    "waypoint": 255
+    "waypoint": 255,
+    "flip_start_altitude": 87.5,
+    "stop_altitude": 20.0
    }
   },
   {
@@ -3007,7 +3023,9 @@
      null
     ],
     "mission_mode": 0,
-    "waypoint": 0
+    "waypoint": 0,
+    "flip_start_altitude": null,
+    "stop_altitude": null
    }
   },
   {
@@ -3036,7 +3054,40 @@
      -0.5
     ],
     "mission_mode": 0,
-    "waypoint": 0
+    "waypoint": 0,
+    "flip_start_altitude": null,
+    "stop_altitude": null
+   }
+  },
+  {
+   "name": "mission_older_sender_no_flip_start",
+   "packet": "MISSION",
+   "hex": "070000000000803f0000004000004040000000000000003f000000bf3930000004020000003f000000bf0000003f000000bf0302",
+   "decoded": {
+    "t_us": 7,
+    "setpoint_pos": [
+     1.0,
+     2.0,
+     3.0
+    ],
+    "setpoint_vel": [
+     0.0,
+     0.5,
+     -0.5
+    ],
+    "mission_time": 12.345,
+    "index": 4,
+    "phase": 2,
+    "setpoint_q": [
+     0.5,
+     -0.5,
+     0.5,
+     -0.5
+    ],
+    "mission_mode": 3,
+    "waypoint": 2,
+    "flip_start_altitude": null,
+    "stop_altitude": null
    }
   },
   {
@@ -3065,7 +3116,9 @@
      null,
      null,
      null
-    ]
+    ],
+    "flip_start_altitude": null,
+    "stop_altitude": null
    }
   },
   {

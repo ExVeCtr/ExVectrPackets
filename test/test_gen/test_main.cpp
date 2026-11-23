@@ -401,7 +401,7 @@ static void test_metadata_constants() {
     TEST_ASSERT_EQUAL_UINT16(25, AirActuators::kAirRateHz);
     TEST_ASSERT_EQUAL_UINT16(0, AirActuators::kUsbRateHz);
     TEST_ASSERT_TRUE(AirMission::kAirEligible);
-    TEST_ASSERT_EQUAL(38, AirMission::kMaxSize);
+    TEST_ASSERT_EQUAL(42, AirMission::kMaxSize);
     TEST_ASSERT_EQUAL(30, AirMission::kMinSize);
     TEST_ASSERT_EQUAL_UINT16(5, AirMission::kAirRateHz);
     TEST_ASSERT_TRUE(AirGnss::kAirEligible);
@@ -419,7 +419,7 @@ static void test_metadata_constants() {
     // every air-eligible packet fits the radio budget: < 3000 B/s including 7 bytes overhead, i.e. below 49 % of the
     // 6150 B/s air downlink entry capacity (was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION; 2150
     // before AIR_GNSS (290 B/s) and AIR_GNSS_INFO (17 B/s); 2500 before AIR_POSE went from 10 to 25 Hz,
-    // +555 B/s, 2026-11-22; the set is 2959 B/s now)
+    // +555 B/s, 2026-11-22; the set is 2979 B/s now)
     unsigned total = (VehicleStatus::kMaxSize + 7) * VehicleStatus::kAirRateHz + (AirPose::kMaxSize + 7) * AirPose::kAirRateHz +
                      (AirActuators::kMaxSize + 7) * AirActuators::kAirRateHz + (AirMission::kMaxSize + 7) * AirMission::kAirRateHz + (AirGnss::kMaxSize + 7) * AirGnss::kAirRateHz + (AirGnssInfo::kMaxSize + 7) * AirGnssInfo::kAirRateHz +
                      (HandsetTelem::kMaxSize + 7) * HandsetTelem::kAirRateHz + (LinkStats::kMaxSize + 7) * LinkStats::kAirRateHz;

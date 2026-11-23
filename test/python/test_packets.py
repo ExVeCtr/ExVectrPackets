@@ -194,7 +194,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_air_set_budget(self):
         """Radio set: payload + 7 bytes per frame, below 49 % of the 6150 B/s air downlink entry capacity (the limit
-        was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION, then 2150 before AIR_GNSS and AIR_GNSS_INFO, 2500 before AIR_POSE went to 25 Hz on 2026-11-22; the set is 2959 B/s now: +10 B/s for VEHICLE_STATUS.cmd_session)."""
+        was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION, then 2150 before AIR_GNSS and AIR_GNSS_INFO, 2500 before AIR_POSE went to 25 Hz on 2026-11-22; the set is 2979 B/s now: +20 B/s for AIR_MISSION flip_start_altitude and stop_altitude)."""
         total = sum((c.MAX_SIZE + 7) * c.AIR_RATE_HZ for c in pk.PACKETS_BY_NAME.values())
         self.assertLess(total, 3000)
 
