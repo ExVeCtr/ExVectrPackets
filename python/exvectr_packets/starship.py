@@ -21,6 +21,16 @@ class RequestAction(enum.IntEnum):
     LINK_REBOOT = 11
     ZERO_ESTIMATORS = 12
     SET_STOP_ALTITUDE = 13
+    CALIB_CONTROL = 14
+    SIM_WIND_SPEED = 15
+    SIM_WIND_DIRECTION = 16
+    SIM_GUST_STRENGTH = 17
+    SIM_GUST_PERIOD = 18
+    SIM_GUST_SEED = 19
+    SIM_FLAP_STUCK = 20
+    SIM_FLAP_SLOW = 21
+    SIM_FAULT_CLEAR = 22
+    GET_HOME_POSITION = 23
 
 
 class ImuFrame(enum.IntEnum):

@@ -101,6 +101,162 @@
    "hex": "0a000d0100000000000020404d000000"
   },
   {
+   "name": "request_calib_control",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 14,
+    "target": 1,
+    "arg_i": 21,
+    "arg_f": 0.0,
+    "session": 77
+   },
+   "hex": "14000e0115000000000000004d000000"
+  },
+  {
+   "name": "request_calib_apply",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 7,
+    "target": 1,
+    "arg_i": 2,
+    "arg_f": 0.0,
+    "session": 77
+   },
+   "hex": "1400070102000000000000004d000000"
+  },
+  {
+   "name": "request_save_config",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 8,
+    "target": 1,
+    "arg_i": 0,
+    "arg_f": 0.0,
+    "session": 77
+   },
+   "hex": "1400080100000000000000004d000000"
+  },
+  {
+   "name": "request_sim_wind_speed",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 15,
+    "target": 1,
+    "arg_i": 0,
+    "arg_f": 5.0,
+    "session": 77
+   },
+   "hex": "14000f01000000000000a0404d000000"
+  },
+  {
+   "name": "request_sim_wind_direction",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 16,
+    "target": 1,
+    "arg_i": 0,
+    "arg_f": 1.5,
+    "session": 77
+   },
+   "hex": "14001001000000000000c03f4d000000"
+  },
+  {
+   "name": "request_sim_gust_strength",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 17,
+    "target": 1,
+    "arg_i": 0,
+    "arg_f": 3.0,
+    "session": 77
+   },
+   "hex": "1400110100000000000040404d000000"
+  },
+  {
+   "name": "request_sim_gust_period",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 18,
+    "target": 1,
+    "arg_i": 0,
+    "arg_f": 4.0,
+    "session": 77
+   },
+   "hex": "1400120100000000000080404d000000"
+  },
+  {
+   "name": "request_sim_gust_seed",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 19,
+    "target": 1,
+    "arg_i": 0,
+    "arg_f": 12345.0,
+    "session": 77
+   },
+   "hex": "140013010000000000e440464d000000"
+  },
+  {
+   "name": "request_sim_flap_stuck",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 20,
+    "target": 1,
+    "arg_i": 2,
+    "arg_f": -1.0,
+    "session": 77
+   },
+   "hex": "1400140102000000000080bf4d000000"
+  },
+  {
+   "name": "request_sim_flap_slow",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 21,
+    "target": 1,
+    "arg_i": 3,
+    "arg_f": 0.25,
+    "session": 77
+   },
+   "hex": "14001501030000000000803e4d000000"
+  },
+  {
+   "name": "request_sim_fault_clear",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 22,
+    "target": 1,
+    "arg_i": 0,
+    "arg_f": 0.0,
+    "session": 77
+   },
+   "hex": "1400160100000000000000004d000000"
+  },
+  {
+   "name": "request_get_home_position",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 20,
+    "action": 23,
+    "target": 1,
+    "arg_i": 0,
+    "arg_f": 0.0,
+    "session": 77
+   },
+   "hex": "1400170100000000000000004d000000"
+  },
+  {
    "name": "rc_state",
    "packet": "RC_STATE",
    "values": {

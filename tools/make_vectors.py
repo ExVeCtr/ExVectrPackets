@@ -47,6 +47,30 @@ case("request_vehicle_session", "REQUEST", {"req_id": 9, "action": 12, "target":
      P("HBBifI", 9, 12, 1, 0, 10.0, 1))
 case("request_set_stop_altitude", "REQUEST", {"req_id": 10, "action": 13, "target": 1, "arg_i": 0, "arg_f": 2.5, "session": 77},
      P("HBBifI", 10, 13, 1, 0, 2.5, 77))
+case("request_calib_control", "REQUEST", {"req_id": 20, "action": 14, "target": 1, "arg_i": 21, "arg_f": 0.0, "session": 77},
+     P("HBBifI", 20, 14, 1, 21, 0.0, 77))
+case("request_calib_apply", "REQUEST", {"req_id": 20, "action": 7, "target": 1, "arg_i": 2, "arg_f": 0.0, "session": 77},
+     P("HBBifI", 20, 7, 1, 2, 0.0, 77))
+case("request_save_config", "REQUEST", {"req_id": 20, "action": 8, "target": 1, "arg_i": 0, "arg_f": 0.0, "session": 77},
+     P("HBBifI", 20, 8, 1, 0, 0.0, 77))
+case("request_sim_wind_speed", "REQUEST", {"req_id": 20, "action": 15, "target": 1, "arg_i": 0, "arg_f": 5.0, "session": 77},
+     P("HBBifI", 20, 15, 1, 0, 5.0, 77))
+case("request_sim_wind_direction", "REQUEST", {"req_id": 20, "action": 16, "target": 1, "arg_i": 0, "arg_f": 1.5, "session": 77},
+     P("HBBifI", 20, 16, 1, 0, 1.5, 77))
+case("request_sim_gust_strength", "REQUEST", {"req_id": 20, "action": 17, "target": 1, "arg_i": 0, "arg_f": 3.0, "session": 77},
+     P("HBBifI", 20, 17, 1, 0, 3.0, 77))
+case("request_sim_gust_period", "REQUEST", {"req_id": 20, "action": 18, "target": 1, "arg_i": 0, "arg_f": 4.0, "session": 77},
+     P("HBBifI", 20, 18, 1, 0, 4.0, 77))
+case("request_sim_gust_seed", "REQUEST", {"req_id": 20, "action": 19, "target": 1, "arg_i": 0, "arg_f": 12345.0, "session": 77},
+     P("HBBifI", 20, 19, 1, 0, 12345.0, 77))
+case("request_sim_flap_stuck", "REQUEST", {"req_id": 20, "action": 20, "target": 1, "arg_i": 2, "arg_f": -1.0, "session": 77},
+     P("HBBifI", 20, 20, 1, 2, -1.0, 77))
+case("request_sim_flap_slow", "REQUEST", {"req_id": 20, "action": 21, "target": 1, "arg_i": 3, "arg_f": 0.25, "session": 77},
+     P("HBBifI", 20, 21, 1, 3, 0.25, 77))
+case("request_sim_fault_clear", "REQUEST", {"req_id": 20, "action": 22, "target": 1, "arg_i": 0, "arg_f": 0.0, "session": 77},
+     P("HBBifI", 20, 22, 1, 0, 0.0, 77))
+case("request_get_home_position", "REQUEST", {"req_id": 20, "action": 23, "target": 1, "arg_i": 0, "arg_f": 0.0, "session": 77},
+     P("HBBifI", 20, 23, 1, 0, 0.0, 77))
 decode_only.append({"name": "request_older_sender_no_session", "packet": "REQUEST",
                     "hex": hexs(P("HBBif", 0x0102, 7, 2, -5, 1.5)),
                     "decoded": {"req_id": 0x0102, "action": 7, "target": 2, "arg_i": -5, "arg_f": 1.5, "session": 0}})

@@ -26,7 +26,27 @@ doc = "Starship vehicle telemetry."
 # SET_STOP_ALTITUDE (13, T9b-5): set the descent stop altitude (what the SetStopAltitude telecommand did). target = 1 (vehicle only),
 # arg_f = stop altitude in m (finite, >= 1.0), arg_i = 0. Accepted only on the ground (disarmed, not committed) and only from the
 # latched CMD_STATE session (REQUEST.session). Echoed in MISSION.stop_altitude. Idempotent by (src, req_id).
-# REQUEST_HOME_POSITION is NOT an action: HOME_POSITION is read through request channel 0x50 (empty args).
+# The legacy telecommand port (0x7F) is deleted: its remaining commands are REQUEST actions 14..23 (and the existing 7 and 8).
+# All are target = 1 and need the latched session (REJECTED_STATE 2/3). arg_i is i32, arg_f is f32. Retired placeholders 1..6
+# (CALIB_*_START/STOP) and 9 (SYSTEM_RESET) are never sent and answered REJECTED_INVALID 3/3; use CALIB_CONTROL.
+# CALIB_APPLY (7): arg_i = subsystem 0 gyro, 1 accel, 2 mag (else REJECTED_INVALID 1); needs a PASS or WARN candidate.
+# SAVE_CONFIG (8, the calibration save): EEPROM <- RAM image, all keys; arg_i and arg_f ignored.
+# CALIB_CONTROL (14): arg_i = subsystem * 10 + code; subsystem 0 gyro, 1 accel, 2 mag; code 1 start (calibrate), 2 verify,
+# 0 stop and fit, 9 discard (legacy paramInt 1, 2, 0, -1). Any other arg_i = REJECTED_INVALID 1. arg_f ignored.
+# CALIB_*: only on the ground and not in simulation mode; a vehicle refusal (not initialised, armed, wrong mode, mission busy,
+# simulation mode, no PASS/WARN candidate, sensor busy) = REJECTED_STATE detail 6 'calibration refused (see console)'.
+# SIM_* (15..22): accepted only in simulation mode, else REJECTED_STATE detail 5 'not in simulation'. Not tied to the
+# on-the-ground rule. The legacy magic 0x57 is dropped (session and simulation-mode checks replace it). Non-finite arg_f or a
+# bad flap index = REJECTED_INVALID 1. Values are clamped (not refused) to the ranges below.
+# SIM_WIND_SPEED (15): arg_f m/s, clamp 0..20. SIM_WIND_DIRECTION (16): arg_f rad, direction the air moves TOWARD, CCW from
+# North toward West (NWU), wrapped to -pi..pi. SIM_GUST_STRENGTH (17): arg_f m/s, clamp 0..10 (0 = none). SIM_GUST_PERIOD (18):
+# arg_f s, clamp 0.5..30. SIM_GUST_SEED (19): arg_f integer-valued 0..16777215 (rounded, clamped).
+# SIM_FLAP_STUCK (20): arg_i = flap 0..3 (0 TL, 1 TR, 2 BL, 3 BR), arg_f = angle rad clamp 0..pi/2, -1 = hold the current true angle.
+# SIM_FLAP_SLOW (21): arg_i = flap 0..3, arg_f = servo rate factor clamp 0.05..1 (1 = normal). SIM_FAULT_CLEAR (22): args ignored.
+# GET_HOME_POSITION (23): args ignored. DONE, then the vehicle sends the plain HOME_POSITION packet (0x50) to the sender; if
+# no position reference is set: REJECTED_STATE detail 4 'no home yet' (no packet). Not tied to the ground rule, not simulation only.
+# Detail codes: REJECTED_STATE 2: 1 not on the ground, 2 zeroing refusal, 3 session, 4 no home yet, 5 not in simulation,
+# 6 calibration refused. REJECTED_INVALID 3: 1 bad argument, 2 wrong target, 3 unknown or retired action.
 # Vehicle-directed (target 1) refusal codes in REQUEST_ACK (every copy is acked): REJECTED_STATE detail 1 = not on the ground
 # (armed, committed or in flight), detail 2 = ZERO_ESTIMATORS-specific state refusal (not initialised / not Startup or Ready /
 # motors on), detail 3 = REQUEST.session is 0 or differs from the latched session (or no session latched);
@@ -34,7 +54,7 @@ doc = "Starship vehicle telemetry."
 # unknown action = REJECTED_INVALID detail 3. DONE detail = 0.
 [enum.RequestAction]
 type = "u8"
-values = { NONE = 0, CALIB_GYRO_START = 1, CALIB_GYRO_STOP = 2, CALIB_ACCEL_START = 3, CALIB_ACCEL_STOP = 4, CALIB_MAG_START = 5, CALIB_MAG_STOP = 6, CALIB_APPLY = 7, SAVE_CONFIG = 8, SYSTEM_RESET = 9, LINK_UPLOAD_MODE = 10, LINK_REBOOT = 11, ZERO_ESTIMATORS = 12, SET_STOP_ALTITUDE = 13 }
+values = { NONE = 0, CALIB_GYRO_START = 1, CALIB_GYRO_STOP = 2, CALIB_ACCEL_START = 3, CALIB_ACCEL_STOP = 4, CALIB_MAG_START = 5, CALIB_MAG_STOP = 6, CALIB_APPLY = 7, SAVE_CONFIG = 8, SYSTEM_RESET = 9, LINK_UPLOAD_MODE = 10, LINK_REBOOT = 11, ZERO_ESTIMATORS = 12, SET_STOP_ALTITUDE = 13, CALIB_CONTROL = 14, SIM_WIND_SPEED = 15, SIM_WIND_DIRECTION = 16, SIM_GUST_STRENGTH = 17, SIM_GUST_PERIOD = 18, SIM_GUST_SEED = 19, SIM_FLAP_STUCK = 20, SIM_FLAP_SLOW = 21, SIM_FAULT_CLEAR = 22, GET_HOME_POSITION = 23 }
 
 # Frame of the raw sensor values that CALIBRATION applies to (IMU_RAW gyro, accel, mag).
 [enum.ImuFrame]

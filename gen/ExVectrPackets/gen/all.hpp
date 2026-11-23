@@ -7,6 +7,6 @@
 namespace VCTR::Packets {
 
 /// FNV-1a-32 over the canonical serialisation of all schema files (heartbeat schema hash).
-constexpr uint32_t kSchemaHash = 0x2361516Fu;
+constexpr uint32_t kSchemaHash = 0x036F9C45u;
 
 } // namespace VCTR::Packets

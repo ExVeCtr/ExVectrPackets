@@ -22,6 +22,16 @@ enum class RequestAction : uint8_t {
     kLinkReboot = 11,
     kZeroEstimators = 12,
     kSetStopAltitude = 13,
+    kCalibControl = 14,
+    kSimWindSpeed = 15,
+    kSimWindDirection = 16,
+    kSimGustStrength = 17,
+    kSimGustPeriod = 18,
+    kSimGustSeed = 19,
+    kSimFlapStuck = 20,
+    kSimFlapSlow = 21,
+    kSimFaultClear = 22,
+    kGetHomePosition = 23,
 };
 
 enum class ImuFrame : uint8_t {
