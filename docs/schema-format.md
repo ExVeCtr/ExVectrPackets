@@ -42,6 +42,8 @@ Ports follow the design port map: 0x01-0x0F link/system, 0x10-0x1F control, 0x20
 
 Common keys: `name` (snake_case), `type`, `count` (fixed-length array), `unit` and `doc` (documentation only), `optional`, `default`, `bits`.
 
+Validation keys (scalar, non-optional integer or enum fields only, used by `CMD_STATE`): `valid = [..]` (the allowed raw values), `min_value` (smallest allowed raw value), and for an enum field `strict = true` (only the declared members). A value that is not allowed makes `decode` fail for the whole frame (C++ returns false and leaves the object untouched, Python raises `ValueError`) and makes `encode` fail (C++ returns 0, Python raises `ValueError`). Without these keys unknown enum values stay plain ints. The keys are part of the schema hash.
+
 | type | Wire | C++ | Python |
 |---|---|---|---|
 | `u8 i8 u16 i16 u32 i32 u64 i64` | little-endian integer | matching `intN_t` | `int` |

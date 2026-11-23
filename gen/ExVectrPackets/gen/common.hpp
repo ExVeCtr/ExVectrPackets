@@ -363,7 +363,7 @@ struct HandsetTelem {
     }
 };
 
-/// Complete command state of a control source, sent continuously (25-50 Hz). Carries the hard motor enable (safety.md section 3).
+/// Sticks, switches and source validity of a handset (Radiomaster Pocket), sent continuously (25-50 Hz). GS-control design (2026-11-23): the vehicle no longer interprets RC_STATE; the Router sends it to the ground station only, and all vehicle commands travel in CMD_STATE (0x13). Layout unchanged.
 struct RcState {
     static constexpr uint8_t kPort = 0x10;
     static constexpr bool kIsHeartbeat = false;
@@ -424,7 +424,7 @@ struct Request {
     static constexpr bool kAirEligible = true;
     static constexpr uint16_t kAirRateHz = 0;
     static constexpr uint16_t kUsbRateHz = 0;
-    static constexpr size_t kMaxSize = 12;
+    static constexpr size_t kMaxSize = 16;
     static constexpr size_t kMinSize = 12;
 
     uint16_t req_id = {}; // non-zero, new per action, reused on retry
@@ -432,16 +432,18 @@ struct Request {
     uint8_t target = {};
     int32_t arg_i = {};
     float arg_f = {};
+    uint32_t session = {}; // CMD_STATE session id of the sender (gs-control design Q5). The vehicle accepts a vehicle-directed REQUEST (target = 1) only if session equals its latched CMD_STATE session (non-zero); 0 = none, so a missing field (older sender, 12-byte payload) decodes as 0 and is refused by the vehicle. Router/ship-node requests (LINK_UPLOAD_MODE, LINK_REBOOT, target 2 or 3) ignore the field.
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 12;
+        constexpr size_t total = 16;
         if (out == nullptr || cap < total) return 0;
         codec::put_u16(out + 0, req_id);
         codec::put_u8(out + 2, action);
         codec::put_u8(out + 3, target);
         codec::put_i32(out + 4, arg_i);
         codec::put_f32(out + 8, arg_f);
+        codec::put_u32(out + 12, session);
         return total;
     }
 
@@ -455,6 +457,11 @@ struct Request {
         t.target = codec::get_u8(in + 3);
         t.arg_i = codec::get_i32(in + 4);
         t.arg_f = codec::get_f32(in + 8);
+        if (len >= 16) {
+            t.session = codec::get_u32(in + 12);
+        } else {
+            t.session = 0;
+        }
         *this = t;
         return true;
     }
@@ -467,6 +474,7 @@ struct Request {
         v.scalar("target", target);
         v.scalar("arg_i", arg_i);
         v.scalar("arg_f", arg_f);
+        v.scalar("session", session);
         (void)v;
     }
 };

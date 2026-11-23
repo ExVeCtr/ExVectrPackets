@@ -289,7 +289,7 @@ class HandsetTelem:
 
 @dataclasses.dataclass
 class RcState:
-    """Complete command state of a control source, sent continuously (25-50 Hz). Carries the hard motor enable (safety.md section 3)."""
+    """Sticks, switches and source validity of a handset (Radiomaster Pocket), sent continuously (25-50 Hz). GS-control design (2026-11-23): the vehicle no longer interprets RC_STATE; the Router sends it to the ground station only, and all vehicle commands travel in CMD_STATE (0x13). Layout unchanged."""
     PORT: ClassVar[Optional[int]] = 0x10
     IS_HEARTBEAT: ClassVar[bool] = False
     QOS: ClassVar[int] = 0  # control
@@ -341,22 +341,24 @@ class Request:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 0
     USB_RATE_HZ: ClassVar[int] = 0
-    MAX_SIZE: ClassVar[int] = 12
+    MAX_SIZE: ClassVar[int] = 16
     MIN_SIZE: ClassVar[int] = 12
     req_id: int = 0  # non-zero, new per action, reused on retry
     action: int = 0
     target: int = 0
     arg_i: int = 0
     arg_f: float = 0.0
+    session: int = 0  # CMD_STATE session id of the sender (gs-control design Q5). The vehicle accepts a vehicle-directed REQUEST (target = 1) only if session equals its latched CMD_STATE session (non-zero); 0 = none, so a missing field (older sender, 12-byte payload) decodes as 0 and is refused by the vehicle. Router/ship-node requests (LINK_UPLOAD_MODE, LINK_REBOOT, target 2 or 3) ignore the field.
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(12)
+        b = bytearray(16)
         _rt.put(b, '<H', 0, self.req_id)
         _rt.put(b, '<B', 2, self.action)
         _rt.put(b, '<B', 3, self.target)
         _rt.put(b, '<i', 4, self.arg_i)
         _rt.put_f32(b, 8, self.arg_f)
+        _rt.put(b, '<I', 12, self.session)
         return bytes(b)
 
     @classmethod
@@ -371,6 +373,10 @@ class Request:
         t.target = _rt.get(data, '<B', 3)
         t.arg_i = _rt.get(data, '<i', 4)
         t.arg_f = _rt.get(data, '<f', 8)
+        if len(data) >= 16:
+            t.session = _rt.get(data, '<I', 12)
+        else:
+            t.session = 0
         return t
 
 

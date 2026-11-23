@@ -136,6 +136,8 @@ def parse_packet(stem, pname, p, enums):
         f.bits = fd.get("bits", {})
         f.optional = bool(fd.get("optional", False))
         f.default = fd.get("default", 0)
+        f.valid = fd.get("valid")            # optional: list of allowed raw integer values (decode/encode reject others)
+        f.min_value = fd.get("min_value")    # optional: smallest allowed raw integer value
         f.max = None
         f.text = False
         if f.is_array and (not isinstance(n, int) or n < 1):
@@ -162,6 +164,8 @@ def parse_packet(stem, pname, p, enums):
             f.wire = enums[en]["type"]
             f.size = INT_TYPES[f.wire][0]
             f.cpp = en
+            if fd.get("strict"):                 # strict enum: only the declared members are accepted
+                f.valid = sorted(enums[en]["values"].values())
         elif t == "char":
             if not f.is_array:
                 raise SchemaError(f"{pname}.{f.name}: char needs count")
@@ -195,6 +199,12 @@ def parse_packet(stem, pname, p, enums):
                 raise SchemaError(f"{pname}.{f.name}: bytes_tail cannot be an array or optional")
         else:
             raise SchemaError(f"{pname}.{f.name}: unknown type {t!r}")
+        if (f.valid is not None or f.min_value is not None) and (
+                f.is_array or f.optional or t not in INT_TYPES and t != "enum"):
+            raise SchemaError(f"{pname}.{f.name}: valid/min_value need a scalar, non-optional integer or enum field")
+        if f.valid is not None and (not isinstance(f.valid, list) or not f.valid
+                                    or not all(isinstance(x, int) for x in f.valid)):
+            raise SchemaError(f"{pname}.{f.name}: valid must be a non-empty list of integers")
         if f.bits and (t not in INT_TYPES or f.is_array):
             raise SchemaError(f"{pname}.{f.name}: bits need a scalar integer field")
         for b, v in f.bits.items():
@@ -273,6 +283,26 @@ def cpp_scalar_get(f, src):
     if t == "fixed":
         return f"static_cast<{f.cpp}>(codec::fixedDecode(codec::get_{f.wire}({src}), {lit(f.scale)}, {f.invalid}LL))"
     raise AssertionError(t)
+
+
+def cpp_valid_cond(f, expr):
+    """C++ condition that is true when the field value is allowed (None if the field is unconstrained)."""
+    parts = []
+    v = "static_cast<int64_t>(%s)" % expr
+    if f.valid is not None:
+        parts.append("(" + " || ".join("%s == %dLL" % (v, x) for x in f.valid) + ")")
+    if f.min_value is not None:
+        parts.append("%s >= %dLL" % (v, f.min_value))
+    return " && ".join(parts) if parts else None
+
+
+def py_valid_cond(f, expr):
+    parts = []
+    if f.valid is not None:
+        parts.append("int(%s) in (%s,)" % (expr, ", ".join(str(x) for x in f.valid)))
+    if f.min_value is not None:
+        parts.append("int(%s) >= %d" % (expr, f.min_value))
+    return " and ".join(parts) if parts else None
 
 
 def cpp_default(f):
@@ -354,6 +384,10 @@ def gen_cpp_file(pf, ns, codec_inc):
             w("        constexpr size_t total = %d;" % total)
             w("        if (out == nullptr || cap < total) return 0;")
         for f in pk["fields"]:
+            c = cpp_valid_cond(f, f.name) if not f.is_array else None
+            if c:
+                w("        if (!(%s)) return 0;  // value not allowed" % c)
+        for f in pk["fields"]:
             if f.type == "bytes_tail":
                 w("        for (size_t i = 0; i < %s_len; ++i) out[%d + i] = %s[i];" % (f.name, f.offset, f.name))
             elif f.type == "char":
@@ -388,6 +422,9 @@ def gen_cpp_file(pf, ns, codec_inc):
                 w(ind + "for (size_t i = 0; i < %d; ++i) t.%s[i] = %s;" % (f.n, f.name, cpp_scalar_get(f, "in + %d + i * %d" % (f.offset, f.size))))
             else:
                 w(ind + "t.%s = %s;" % (f.name, cpp_scalar_get(f, "in + %d" % f.offset)))
+                c = cpp_valid_cond(f, "t." + f.name)
+                if c:
+                    w(ind + "if (!(%s)) return false;  // value not allowed: whole frame rejected" % c)
             if f.optional:
                 w("        } else {")
                 if f.is_array:
@@ -556,6 +593,11 @@ def gen_py_file(pf, runtime_import):
         else:
             w("        b = bytearray(%d)" % pk["max_size"])
         for f in pk["fields"]:
+            c = py_valid_cond(f, "self." + f.name) if not f.is_array else None
+            if c:
+                w("        if not (%s):" % c)
+                w("            raise ValueError('%s: value not allowed')" % f.name)
+        for f in pk["fields"]:
             if f.type == "bytes_tail":
                 w("        b[%d:] = tail" % f.offset)
             elif f.type == "char":
@@ -594,6 +636,10 @@ def gen_py_file(pf, runtime_import):
                 w(ind + "t.%s = [%s for i in range(%d)]" % (f.name, py_get(f, "%d + i * %d" % (f.offset, f.size)), f.n))
             else:
                 w(ind + "t.%s = %s" % (f.name, py_get(f, str(f.offset))))
+                c = py_valid_cond(f, "t." + f.name)
+                if c:
+                    w(ind + "if not (%s):" % c)
+                    w(ind + "    raise ValueError('%s: value not allowed')" % f.name)
             if f.optional:
                 w("        else:")
                 if f.is_array:
@@ -677,6 +723,9 @@ def gen_doc(parsed, h):
                 note = f.doc
                 if f.bits:
                     note += " Bits: " + ", ".join("%s = bit %d" % kv for kv in f.bits.items()) + "."
+                if f.valid is not None or f.min_value is not None:
+                    note += " Allowed:" + (" " + ", ".join(str(x) for x in f.valid) if f.valid is not None else "") + (
+                        " (min %d)" % f.min_value if f.min_value is not None else "") + "; any other value rejects the whole frame."
                 if f.optional:
                     note += " Optional (append-only), default %s." % ("NaN" if f.type in ("f32", "f64", "fixed") else f.default)
                 L.append("| %d | `%s` | %s | %s | %s |" % (f.offset, f.name, field_type_text(f), f.unit, note.strip()))

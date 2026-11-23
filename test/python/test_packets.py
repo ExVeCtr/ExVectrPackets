@@ -135,10 +135,24 @@ class FixedRules(unittest.TestCase):
             pk.LogText(text="x" * 234).encode()
         self.assertEqual(len(pk.LogText(text="x" * 233).encode()), 234)
 
+    def test_cmd_state_strict(self):
+        ok = pk.CmdState(flags=1, version=1, session=7)
+        self.assertEqual(len(ok.encode()), 14)
+        self.assertEqual(pk.CmdState.decode(ok.encode()).session, 7)
+        for field, bad in (("session", 0), ("version", 2), ("flags", 0), ("profile", 3), ("go", 2), ("reserved", 1)):
+            with self.subTest(field):
+                with self.assertRaises(ValueError):
+                    pk.CmdState(**{**dict(flags=1, version=1, session=7), field: bad}).encode()
+
+    def test_request_session_is_optional(self):
+        old = pk.Request.decode(bytes(12))
+        self.assertEqual(old.session, 0)
+        self.assertEqual(len(pk.Request(session=5).encode()), 16)
+
     def test_nan_and_overflow_floats(self):
-        self.assertEqual(pk.Request(arg_f=math.nan).encode()[8:], bytes.fromhex("0000c07f"))
-        self.assertEqual(pk.Request(arg_f=1e39).encode()[8:], bytes.fromhex("0000807f"))
-        self.assertEqual(pk.Request(arg_f=-1e39).encode()[8:], bytes.fromhex("000080ff"))
+        self.assertEqual(pk.Request(arg_f=math.nan).encode()[8:12], bytes.fromhex("0000c07f"))
+        self.assertEqual(pk.Request(arg_f=1e39).encode()[8:12], bytes.fromhex("0000807f"))
+        self.assertEqual(pk.Request(arg_f=-1e39).encode()[8:12], bytes.fromhex("000080ff"))
 
 
 class SchemaTests(unittest.TestCase):
@@ -180,7 +194,7 @@ class SchemaTests(unittest.TestCase):
 
     def test_air_set_budget(self):
         """Radio set: payload + 7 bytes per frame, below 49 % of the 6150 B/s air downlink entry capacity (the limit
-        was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION, then 2150 before AIR_GNSS and AIR_GNSS_INFO, 2500 before AIR_POSE went to 25 Hz on 2026-11-22; the set is 2901 B/s now)."""
+        was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION, then 2150 before AIR_GNSS and AIR_GNSS_INFO, 2500 before AIR_POSE went to 25 Hz on 2026-11-22; the set is 2959 B/s now: +10 B/s for VEHICLE_STATUS.cmd_session)."""
         total = sum((c.MAX_SIZE + 7) * c.AIR_RATE_HZ for c in pk.PACKETS_BY_NAME.values())
         self.assertLess(total, 3000)
 

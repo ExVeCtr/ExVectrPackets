@@ -30,9 +30,131 @@ enum class ImuFrame : uint8_t {
 
 enum class ControlSource : uint8_t {
     kNone = 0,
-    kRadio = 1,
-    kUsb = 2,
-    kUart = 3,
+    kGs = 1,
+};
+
+enum class CmdGo : uint8_t {
+    kNotGo = 0,
+    kGo = 1,
+};
+
+enum class CmdVehicleMode : uint8_t {
+    kReal = 0,
+    kSimulation = 1,
+};
+
+enum class CmdMotors : uint8_t {
+    kDisabled = 0,
+    kEnabled = 1,
+};
+
+enum class CmdButton : uint8_t {
+    kReleased = 0,
+    kPressed = 1,
+};
+
+enum class CmdFailsafe : uint8_t {
+    kNone = 0,
+    kFailsafe = 1,
+};
+
+/// GS-control design (2026-11-23): the complete command state of the ground station (node 0) to the vehicle (node 1), level-based and repeated at 25 Hz (plus an immediate frame on every change), identical frame (same sequence) on every link. Strict: every field must be a declared value (enum members, version 1, session non-zero, reserved zero, flags bit 0 set and only bits 0..2); anything else rejects the whole frame, which counts as no data (decode fails). No authentication field (owner decision 2026-11-23). Port 0x13 is in the common control range so routers class it as CONTROL without knowing this layout; only src 0 -> dst 1 is forwarded. The SA..SE mapping: go = SA, profile = SB, vehicle_mode = SC (command value 0 = real, 1 and 2 = simulation on the handset; the vehicle boots real), motors = SD (motors armed / disarmed), reset_button = SE (short press reset, hold >= 1 s zero while held), go = mission begin edge request (NOT_GO -> GO observed edge).
+struct CmdState {
+    static constexpr uint8_t kPort = 0x13;
+    static constexpr bool kIsHeartbeat = false;
+    static constexpr uint8_t kQos = 0; // control (Control 0, Link 1, Event 2, Telemetry 3)
+    static constexpr bool kLatest = true;
+    static constexpr bool kAirEligible = true;
+    static constexpr uint16_t kAirRateHz = 0;
+    static constexpr uint16_t kUsbRateHz = 0;
+    static constexpr size_t kMaxSize = 14;
+    static constexpr size_t kMinSize = 14;
+    static constexpr uint8_t kFlagsValid = uint8_t(1u << 0);
+    static constexpr uint8_t kFlagsPocketLive = uint8_t(1u << 1);
+    static constexpr uint8_t kFlagsInputVirtual = uint8_t(1u << 2);
+
+    uint8_t flags = {}; // VALID must be 1. POCKET_LIVE (the handset stream is alive at the GS) and INPUT_VIRTUAL (input is the virtual panel) are information only: the vehicle reports them, never acts on them. Bits 3..7 must be 0.
+    uint8_t version = {}; // CMD_STATE layout version, must be 1
+    uint32_t session = {}; // random per GS process start, never 0; the vehicle latches one session and rejects frames of any other
+    CmdGo go = {}; // SA: mission begin edge request. NOT_GO also aborts while pending or running
+    uint8_t profile = {}; // SB position 0, 1, 2, latched at the go edge
+    CmdVehicleMode vehicle_mode = {}; // SC: REAL = command value 0, SIMULATION = 1 and 2 (the vehicle boots real); an observed change is applied on the ground when not committed
+    CmdMotors motors = {}; // SD: motors armed (ENABLED) / disarmed (DISABLED), the interlock input
+    CmdButton reset_button = {}; // SE: short press = reset, hold >= 1 s = zero while held
+    CmdFailsafe failsafe = {}; // FAILSAFE = GS failsafe requested (latched failsafe on the vehicle, any state); sent together with motors DISABLED and go NOT_GO
+    uint16_t reserved = {}; // must be 0 (kept so the payload stays 14 B)
+
+    /// Bytes written, 0 on failure (null buffer or too small).
+    size_t encode(uint8_t* out, size_t cap) const {
+        constexpr size_t total = 14;
+        if (out == nullptr || cap < total) return 0;
+        if (!((static_cast<int64_t>(flags) == 1LL || static_cast<int64_t>(flags) == 3LL || static_cast<int64_t>(flags) == 5LL || static_cast<int64_t>(flags) == 7LL))) return 0;  // value not allowed
+        if (!((static_cast<int64_t>(version) == 1LL))) return 0;  // value not allowed
+        if (!(static_cast<int64_t>(session) >= 1LL)) return 0;  // value not allowed
+        if (!((static_cast<int64_t>(go) == 0LL || static_cast<int64_t>(go) == 1LL))) return 0;  // value not allowed
+        if (!((static_cast<int64_t>(profile) == 0LL || static_cast<int64_t>(profile) == 1LL || static_cast<int64_t>(profile) == 2LL))) return 0;  // value not allowed
+        if (!((static_cast<int64_t>(vehicle_mode) == 0LL || static_cast<int64_t>(vehicle_mode) == 1LL))) return 0;  // value not allowed
+        if (!((static_cast<int64_t>(motors) == 0LL || static_cast<int64_t>(motors) == 1LL))) return 0;  // value not allowed
+        if (!((static_cast<int64_t>(reset_button) == 0LL || static_cast<int64_t>(reset_button) == 1LL))) return 0;  // value not allowed
+        if (!((static_cast<int64_t>(failsafe) == 0LL || static_cast<int64_t>(failsafe) == 1LL))) return 0;  // value not allowed
+        if (!((static_cast<int64_t>(reserved) == 0LL))) return 0;  // value not allowed
+        codec::put_u8(out + 0, flags);
+        codec::put_u8(out + 1, version);
+        codec::put_u32(out + 2, session);
+        codec::put_u8(out + 6, static_cast<uint8_t>(go));
+        codec::put_u8(out + 7, profile);
+        codec::put_u8(out + 8, static_cast<uint8_t>(vehicle_mode));
+        codec::put_u8(out + 9, static_cast<uint8_t>(motors));
+        codec::put_u8(out + 10, static_cast<uint8_t>(reset_button));
+        codec::put_u8(out + 11, static_cast<uint8_t>(failsafe));
+        codec::put_u16(out + 12, reserved);
+        return total;
+    }
+
+    /// False if the payload is shorter than kMinSize (or a tail is too long). Longer payloads are accepted (extra
+    /// bytes ignored); optional fields missing from shorter payloads get their default/NaN.
+    bool decode(const uint8_t* in, size_t len) {
+        if (in == nullptr || len < kMinSize) return false;
+        CmdState t;
+        t.flags = codec::get_u8(in + 0);
+        if (!((static_cast<int64_t>(t.flags) == 1LL || static_cast<int64_t>(t.flags) == 3LL || static_cast<int64_t>(t.flags) == 5LL || static_cast<int64_t>(t.flags) == 7LL))) return false;  // value not allowed: whole frame rejected
+        t.version = codec::get_u8(in + 1);
+        if (!((static_cast<int64_t>(t.version) == 1LL))) return false;  // value not allowed: whole frame rejected
+        t.session = codec::get_u32(in + 2);
+        if (!(static_cast<int64_t>(t.session) >= 1LL)) return false;  // value not allowed: whole frame rejected
+        t.go = static_cast<CmdGo>(codec::get_u8(in + 6));
+        if (!((static_cast<int64_t>(t.go) == 0LL || static_cast<int64_t>(t.go) == 1LL))) return false;  // value not allowed: whole frame rejected
+        t.profile = codec::get_u8(in + 7);
+        if (!((static_cast<int64_t>(t.profile) == 0LL || static_cast<int64_t>(t.profile) == 1LL || static_cast<int64_t>(t.profile) == 2LL))) return false;  // value not allowed: whole frame rejected
+        t.vehicle_mode = static_cast<CmdVehicleMode>(codec::get_u8(in + 8));
+        if (!((static_cast<int64_t>(t.vehicle_mode) == 0LL || static_cast<int64_t>(t.vehicle_mode) == 1LL))) return false;  // value not allowed: whole frame rejected
+        t.motors = static_cast<CmdMotors>(codec::get_u8(in + 9));
+        if (!((static_cast<int64_t>(t.motors) == 0LL || static_cast<int64_t>(t.motors) == 1LL))) return false;  // value not allowed: whole frame rejected
+        t.reset_button = static_cast<CmdButton>(codec::get_u8(in + 10));
+        if (!((static_cast<int64_t>(t.reset_button) == 0LL || static_cast<int64_t>(t.reset_button) == 1LL))) return false;  // value not allowed: whole frame rejected
+        t.failsafe = static_cast<CmdFailsafe>(codec::get_u8(in + 11));
+        if (!((static_cast<int64_t>(t.failsafe) == 0LL || static_cast<int64_t>(t.failsafe) == 1LL))) return false;  // value not allowed: whole frame rejected
+        t.reserved = codec::get_u16(in + 12);
+        if (!((static_cast<int64_t>(t.reserved) == 0LL))) return false;  // value not allowed: whole frame rejected
+        *this = t;
+        return true;
+    }
+
+    /// Calls v.scalar/array/chars/tail(name, member) for every field (used by tests and tooling).
+    template <class V>
+    void visit(V& v) {
+        v.scalar("flags", flags);
+        v.scalar("version", version);
+        v.scalar("session", session);
+        v.scalar("go", go);
+        v.scalar("profile", profile);
+        v.scalar("vehicle_mode", vehicle_mode);
+        v.scalar("motors", motors);
+        v.scalar("reset_button", reset_button);
+        v.scalar("failsafe", failsafe);
+        v.scalar("reserved", reserved);
+        (void)v;
+    }
 };
 
 /// Mode and health, the slow class. Reports what the vehicle applied (safety.md 2.6).
@@ -44,7 +166,7 @@ struct VehicleStatus {
     static constexpr bool kAirEligible = true;
     static constexpr uint16_t kAirRateHz = 5;
     static constexpr uint16_t kUsbRateHz = 20;
-    static constexpr size_t kMaxSize = 36;
+    static constexpr size_t kMaxSize = 38;
     static constexpr size_t kMinSize = 28;
     static constexpr uint8_t kFlagsArmed = uint8_t(1u << 0);
     static constexpr uint8_t kFlagsSimulation = uint8_t(1u << 1);
@@ -61,10 +183,12 @@ struct VehicleStatus {
     static constexpr uint16_t kCtrlFlagsScMismatch = uint16_t(1u << 4);
     static constexpr uint16_t kCtrlFlagsSeHoldZeroing = uint16_t(1u << 5);
     static constexpr uint16_t kCtrlFlagsSeRefused = uint16_t(1u << 6);
-    static constexpr uint16_t kCtrlFlagsRadioFresh = uint16_t(1u << 7);
-    static constexpr uint16_t kCtrlFlagsBenchFresh = uint16_t(1u << 8);
+    static constexpr uint16_t kCtrlFlagsUsbFresh = uint16_t(1u << 7);
+    static constexpr uint16_t kCtrlFlagsUartFresh = uint16_t(1u << 8);
     static constexpr uint16_t kCtrlFlagsSourceLatched = uint16_t(1u << 9);
     static constexpr uint16_t kCtrlFlagsReqQueueFull = uint16_t(1u << 10);
+    static constexpr uint16_t kCtrlFlagsMultiMaster = uint16_t(1u << 11);
+    static constexpr uint16_t kCtrlFlagsGsFailsafeReq = uint16_t(1u << 12);
     static constexpr uint8_t kDegradedBitsTofLost = uint8_t(1u << 0);
     static constexpr uint8_t kDegradedBitsLinkStatsLost = uint8_t(1u << 1);
     static constexpr uint8_t kDegradedBitsUartHeartbeatLost = uint8_t(1u << 2);
@@ -74,24 +198,25 @@ struct VehicleStatus {
     uint8_t mode = {}; // flight software mode (numbering owned by the flight software docs)
     uint8_t mission_mode = {};
     uint8_t mission_phase = {};
-    ControlSource ctrl_source = {}; // active control source
-    uint8_t flags = {}; // ARMED (redefined by T9b, 2026-11-22): the motor interlock (Pocket switch SD) is open; the vehicle-side arm state is no longer a separate flag. MOTORS_ENABLED: the interlock is open AND the motor outputs are enabled (the hard motor gate is open). UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it). ZEROING: an estimator zeroing window is active (automatic boot zero or ZeroEstimators); the vehicle must be kept still, Arm and MissionBegin are refused.
-    uint32_t failure_bits = {}; // bit 0 sensor (set for any sensor failsafe, kept for compatibility), 1 attitude, 2 position, 3 position out of bounds, 4 attitude out of bounds, 5 CONTROL_SOURCE_LOST (renamed from radio connection loss: the active RC_STATE source was older than 2 s while committed), 6 GNSS lost (abort to no-position RTH), 7 magnetometer lost (abort to no-position RTH), 8 barometer, 9 gyro, 10 accelerometer, 11 attitude estimate, 12 position estimate, 13 motor-interlock watchdog. Bits 6-13 are defined by T9b; a sender before T9b never sets them. Bits 14..31 are reserved (zero).
+    ControlSource ctrl_source = {}; // active control source: 0 none, 1 GS (the latched CMD_STATE session)
+    uint8_t flags = {}; // ARMED (redefined by T9b, 2026-11-22): motors armed = the motor interlock is open (CMD_STATE motors ENABLED accepted; SD is named motors armed / disarmed); the vehicle-side arm state is no longer a separate flag. MOTORS_ENABLED: the interlock is open AND the motor outputs are enabled (the hard motor gate is open). UART_PEER_SEEN: a valid frame from the ship radio node (node 3) arrived on the vehicle UART within the last 3 s (information only, the vehicle never acts on it). ZEROING: an estimator zeroing window is active (automatic boot zero or ZeroEstimators); the vehicle must be kept still, Arm and MissionBegin are refused.
+    uint32_t failure_bits = {}; // bit 0 sensor (set for any sensor failsafe, kept for compatibility), 1 attitude, 2 position, 3 position out of bounds, 4 attitude out of bounds, 5 CONTROL_SOURCE_LOST (renamed from radio connection loss: the accepted CMD_STATE was older than 2 s while committed), 6 GNSS lost (abort to no-position RTH), 7 magnetometer lost (abort to no-position RTH), 8 barometer, 9 gyro, 10 accelerometer, 11 attitude estimate, 12 position estimate, 13 motor-interlock watchdog. Bits 6-13 are defined by T9b; a sender before T9b never sets them. 14 GS_FAILSAFE (an accepted CMD_STATE carried failsafe = 1; latched, cleared by the SE reset while the request is 0). Bits 15..31 are reserved (zero).
     uint16_t sensor_state = {};
     uint16_t last_req_id = {}; // last executed REQUEST id, 0 = none
     uint8_t last_req_status = {}; // RequestStatus value of last_req_id
-    float rc_age = {}; // [s] age of the last accepted RC_STATE, invalid (NaN) = none
+    float rc_age = {}; // [s] age of the last accepted CMD_STATE (either link), invalid (NaN) = none
     uint8_t home_epoch = {}; // increments whenever the home reference (HOME_POSITION) changes; the GS requests HOME_POSITION again when it changes. 0 = no home yet. Missing (older sender) decodes as 0
     uint8_t calib_state = {}; // calibration state bits. bit0 gyro calibration valid, bit1 accel calibration valid, bit2 mag calibration valid, bit3 a calibration session is active (collecting or fitting), bit4 ready to arm (all gates the vehicle applies for Arm and MissionBegin are satisfied), bits 5-7 reserved (zero). Missing (older sender) decodes as 0 = unknown
-    uint16_t ctrl_flags = {}; // T9b command-path state. INTERLOCK_NEED_TOGGLE: SD must be toggled disabled -> enabled before the interlock opens. ABORT_LATCHED / FAILSAFE_LATCHED: latched until the Pocket SE short press while disarmed on the ground. NOPOS_RTH: the no-position return-to-home is active. SC_MISMATCH: SC differs from the applied mode. SE_HOLD_ZEROING: SE held, zeroing in progress. SE_REFUSED: an SE press was refused (shown for 2 s). RADIO_FRESH / BENCH_FRESH: an accepted RC_STATE from that source is at most 2 s old (also shown for the ignored source). SOURCE_LATCHED: the active source is latched because the vehicle is committed. REQ_QUEUE_FULL: the REQUEST queue is full. Bits 11..15 reserved (zero). Missing (older sender) decodes as 0
+    uint16_t ctrl_flags = {}; // T9b command-path state. INTERLOCK_NEED_TOGGLE: SD must be toggled disabled -> enabled before the interlock opens. ABORT_LATCHED / FAILSAFE_LATCHED: latched until the SE reset (CMD_STATE reset_button) while disarmed on the ground. NOPOS_RTH: the no-position return-to-home is active. SC_MISMATCH: SC differs from the applied mode. SE_HOLD_ZEROING: SE held, zeroing in progress. SE_REFUSED: an SE press was refused (shown for 2 s). USB_FRESH / UART_FRESH (bits 7 and 8, formerly RADIO_FRESH / BENCH_FRESH): an accepted or duplicate CMD_STATE of the latched session arrived on that link at most 2 s ago (information only). SOURCE_LATCHED: the GS session is latched because the vehicle is committed. REQ_QUEUE_FULL: the REQUEST queue is full. MULTI_MASTER: a CMD_STATE of a foreign session was rejected within the last 2 s. GS_FAILSAFE_REQ: the last accepted CMD_STATE carried failsafe = 1. Bits 13..15 reserved (zero). Missing (older sender) decodes as 0
     uint8_t go_refusal = {}; // reason for the last refused go: 0 none, 1 not Ready, 2 latched abort/failsafe, 3 zeroing window, 4 SC mismatch, 5 SB invalid or profile not implemented, 6 interlock, 7 request in progress. Missing decodes as 0
-    uint8_t degraded_bits = {}; // degraded warnings (no action taken, not latched): bit 0 ToF ground distance no sample for 1 s while initialised, bit 1 ship-node LINK_STATS on the UART older than 1 s while RADIO is fresh, bit 2 ship-node heartbeat on the UART older than 3 s while RADIO is fresh. Bits 3..7 reserved (zero). Missing decodes as 0
+    uint8_t degraded_bits = {}; // degraded warnings (no action taken, not latched): bit 0 ToF ground distance no sample for 1 s while initialised, bit 1 ship-node LINK_STATS on the UART older than 1 s while the UART link is fresh, bit 2 ship-node heartbeat on the UART older than 3 s while the UART link is fresh. Bits 3..7 reserved (zero). Missing decodes as 0
     uint8_t mission_profile = {}; // SB position latched at the last go (0, 1, 2), 255 = none. NOTE: a missing field (older sender) decodes as 0, indistinguishable from profile 0; use calib_state/ctrl_flags presence via the payload length if that matters
-    uint8_t rc_rejected = {}; // wrapping count of rejected RC_STATE frames (all reasons, both sources). Missing decodes as 0
+    uint8_t rc_rejected = {}; // wrapping count of rejected CMD_STATE frames (all reasons, both links). Missing decodes as 0
+    uint16_t cmd_session = {}; // low 16 bits of the latched CMD_STATE session id, 0 = none. The ground station compares it with its own session (NOT MASTER if different). Missing decodes as 0
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 36;
+        constexpr size_t total = 38;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         codec::put_i64(out + 4, t_ns);
@@ -112,6 +237,7 @@ struct VehicleStatus {
         codec::put_u8(out + 33, degraded_bits);
         codec::put_u8(out + 34, mission_profile);
         codec::put_u8(out + 35, rc_rejected);
+        codec::put_u16(out + 36, cmd_session);
         return total;
     }
 
@@ -167,6 +293,11 @@ struct VehicleStatus {
         } else {
             t.rc_rejected = 0;
         }
+        if (len >= 38) {
+            t.cmd_session = codec::get_u16(in + 36);
+        } else {
+            t.cmd_session = 0;
+        }
         *this = t;
         return true;
     }
@@ -193,6 +324,7 @@ struct VehicleStatus {
         v.scalar("degraded_bits", degraded_bits);
         v.scalar("mission_profile", mission_profile);
         v.scalar("rc_rejected", rc_rejected);
+        v.scalar("cmd_session", cmd_session);
         (void)v;
     }
 };
@@ -701,8 +833,8 @@ struct Mission {
     }
 };
 
-/// T9b, USB only (no air cost): the RC_STATE switch positions as the vehicle decodes them (channel table, flight-software docs), the transition detectors' safe-seen bits, the age of both control sources and the RC_STATE reject counters. For bench debugging of the Pocket mapping.
-struct RcApplied {
+/// GS-control design, USB only (no air cost; replaces RC_APPLIED at 0x84): the CMD_STATE fields as the vehicle applies them (last accepted frame of the latched session), the transition detectors' safe-seen bits, ages, the latched session and the reject counters. For bench debugging of the command path.
+struct CmdApplied {
     static constexpr uint8_t kPort = 0x84;
     static constexpr bool kIsHeartbeat = false;
     static constexpr uint8_t kQos = 3; // telemetry (Control 0, Link 1, Event 2, Telemetry 3)
@@ -710,38 +842,48 @@ struct RcApplied {
     static constexpr bool kAirEligible = false;
     static constexpr uint16_t kAirRateHz = 0;
     static constexpr uint16_t kUsbRateHz = 10;
-    static constexpr size_t kMaxSize = 18;
-    static constexpr size_t kMinSize = 18;
+    static constexpr size_t kMaxSize = 26;
+    static constexpr size_t kMinSize = 26;
+    static constexpr uint8_t kFlagsPocketLive = uint8_t(1u << 0);
+    static constexpr uint8_t kFlagsInputVirtual = uint8_t(1u << 1);
     static constexpr uint8_t kSafeSeenGo = uint8_t(1u << 0);
     static constexpr uint8_t kSafeSeenScReal = uint8_t(1u << 1);
     static constexpr uint8_t kSafeSeenSdEnable = uint8_t(1u << 2);
     static constexpr uint8_t kSafeSeenSePress = uint8_t(1u << 3);
 
     uint32_t t_us = {}; // [us] 
-    uint8_t sa = {}; // SA decoded: 0 NOT_GO, 1 GO (invalid decodes to 0)
-    uint8_t sb = {}; // SB decoded: 0, 1, 2, 255 = invalid
-    uint8_t sc = {}; // SC decoded: 0 sim, 1 real, 2 reserved, 255 = invalid
-    uint8_t sd = {}; // SD decoded: 0 DISABLED, 1 ENABLED (invalid decodes to 0)
-    uint8_t se = {}; // SE decoded: 0 RELEASED, 1 PRESSED (invalid decodes to 0)
-    uint8_t safe_seen = {}; // each unsafe-direction detector's 'safe value seen' bit (set: an edge may be reported). Bits 4..7 reserved
-    float radio_age = {}; // [s] age of the last accepted RC_STATE from the RADIO source, invalid (NaN) = none
-    float bench_age = {}; // [s] age of the last accepted RC_STATE from the USB (bench) source, invalid (NaN) = none
-    uint8_t rejects[4] = {}; // wrapping reject counters per reason: [0] bad length or undecodable, [1] source (src, link) not in the table, [2] stale or repeated sequence, [3] SOURCE_OK clear
+    CmdGo go = {}; // last accepted go (NOT_GO if none yet)
+    uint8_t profile = {}; // last accepted profile 0, 1, 2
+    CmdVehicleMode vehicle_mode = {}; // last accepted vehicle_mode field (not the applied mode)
+    CmdMotors motors = {}; // last accepted motors field
+    CmdButton reset_button = {}; // last accepted reset_button field
+    CmdFailsafe failsafe = {}; // last accepted failsafe field
+    uint8_t flags = {}; // the information flags of the last accepted CMD_STATE (POCKET_LIVE = CMD_STATE flags bit 1, INPUT_VIRTUAL = bit 2); reported, never acted on. Bits 2..7 reserved
+    uint8_t safe_seen = {}; // each unsafe-direction detector's 'safe value seen' bit (set: an edge may be reported). SC_REAL: vehicle_mode REAL seen (or SIMULATION seen for the reverse edge, as the mapper defines it). Bits 4..7 reserved
+    uint32_t session = {}; // full latched session id, 0 = none
+    float age = {}; // [s] age of the last accepted CMD_STATE (either link), invalid (NaN) = none
+    float usb_age = {}; // [s] age of the last accepted or duplicate copy of the latched session on the USB link, invalid (NaN) = none
+    float uart_age = {}; // [s] same for the UART link
+    uint8_t rejects[4] = {}; // wrapping reject counters per reason: [0] bad length or field out of range, [1] source (src not 0), [2] foreign session, [3] stale or duplicate sequence
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 18;
+        constexpr size_t total = 26;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
-        codec::put_u8(out + 4, sa);
-        codec::put_u8(out + 5, sb);
-        codec::put_u8(out + 6, sc);
-        codec::put_u8(out + 7, sd);
-        codec::put_u8(out + 8, se);
-        codec::put_u8(out + 9, safe_seen);
-        codec::put_u16(out + 10, static_cast<uint16_t>(codec::fixedEncode(radio_age, 0.001, 0LL, 65534LL, 65535LL)));
-        codec::put_u16(out + 12, static_cast<uint16_t>(codec::fixedEncode(bench_age, 0.001, 0LL, 65534LL, 65535LL)));
-        for (size_t i = 0; i < 4; ++i) codec::put_u8(out + 14 + i * 1, rejects[i]);
+        codec::put_u8(out + 4, static_cast<uint8_t>(go));
+        codec::put_u8(out + 5, profile);
+        codec::put_u8(out + 6, static_cast<uint8_t>(vehicle_mode));
+        codec::put_u8(out + 7, static_cast<uint8_t>(motors));
+        codec::put_u8(out + 8, static_cast<uint8_t>(reset_button));
+        codec::put_u8(out + 9, static_cast<uint8_t>(failsafe));
+        codec::put_u8(out + 10, flags);
+        codec::put_u8(out + 11, safe_seen);
+        codec::put_u32(out + 12, session);
+        codec::put_u16(out + 16, static_cast<uint16_t>(codec::fixedEncode(age, 0.001, 0LL, 65534LL, 65535LL)));
+        codec::put_u16(out + 18, static_cast<uint16_t>(codec::fixedEncode(usb_age, 0.001, 0LL, 65534LL, 65535LL)));
+        codec::put_u16(out + 20, static_cast<uint16_t>(codec::fixedEncode(uart_age, 0.001, 0LL, 65534LL, 65535LL)));
+        for (size_t i = 0; i < 4; ++i) codec::put_u8(out + 22 + i * 1, rejects[i]);
         return total;
     }
 
@@ -749,17 +891,21 @@ struct RcApplied {
     /// bytes ignored); optional fields missing from shorter payloads get their default/NaN.
     bool decode(const uint8_t* in, size_t len) {
         if (in == nullptr || len < kMinSize) return false;
-        RcApplied t;
+        CmdApplied t;
         t.t_us = codec::get_u32(in + 0);
-        t.sa = codec::get_u8(in + 4);
-        t.sb = codec::get_u8(in + 5);
-        t.sc = codec::get_u8(in + 6);
-        t.sd = codec::get_u8(in + 7);
-        t.se = codec::get_u8(in + 8);
-        t.safe_seen = codec::get_u8(in + 9);
-        t.radio_age = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 10), 0.001, 65535LL));
-        t.bench_age = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 12), 0.001, 65535LL));
-        for (size_t i = 0; i < 4; ++i) t.rejects[i] = codec::get_u8(in + 14 + i * 1);
+        t.go = static_cast<CmdGo>(codec::get_u8(in + 4));
+        t.profile = codec::get_u8(in + 5);
+        t.vehicle_mode = static_cast<CmdVehicleMode>(codec::get_u8(in + 6));
+        t.motors = static_cast<CmdMotors>(codec::get_u8(in + 7));
+        t.reset_button = static_cast<CmdButton>(codec::get_u8(in + 8));
+        t.failsafe = static_cast<CmdFailsafe>(codec::get_u8(in + 9));
+        t.flags = codec::get_u8(in + 10);
+        t.safe_seen = codec::get_u8(in + 11);
+        t.session = codec::get_u32(in + 12);
+        t.age = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 16), 0.001, 65535LL));
+        t.usb_age = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 18), 0.001, 65535LL));
+        t.uart_age = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 20), 0.001, 65535LL));
+        for (size_t i = 0; i < 4; ++i) t.rejects[i] = codec::get_u8(in + 22 + i * 1);
         *this = t;
         return true;
     }
@@ -768,14 +914,18 @@ struct RcApplied {
     template <class V>
     void visit(V& v) {
         v.scalar("t_us", t_us);
-        v.scalar("sa", sa);
-        v.scalar("sb", sb);
-        v.scalar("sc", sc);
-        v.scalar("sd", sd);
-        v.scalar("se", se);
+        v.scalar("go", go);
+        v.scalar("profile", profile);
+        v.scalar("vehicle_mode", vehicle_mode);
+        v.scalar("motors", motors);
+        v.scalar("reset_button", reset_button);
+        v.scalar("failsafe", failsafe);
+        v.scalar("flags", flags);
         v.scalar("safe_seen", safe_seen);
-        v.scalar("radio_age", radio_age);
-        v.scalar("bench_age", bench_age);
+        v.scalar("session", session);
+        v.scalar("age", age);
+        v.scalar("usb_age", usb_age);
+        v.scalar("uart_age", uart_age);
         v.array("rejects", rejects);
         (void)v;
     }

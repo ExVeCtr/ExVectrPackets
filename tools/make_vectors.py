@@ -36,12 +36,18 @@ case("heartbeat_4_8", "HEARTBEAT",
 case("request_ack_4_8", "REQUEST_ACK", {"req_id": 0x0102, "status": 0, "detail": 0},
      bytes.fromhex("02010000"))
 case("request_ack_rejected", "REQUEST_ACK", {"req_id": 7, "status": 2, "detail": 9}, P("HBB", 7, 2, 9))
-case("request", "REQUEST", {"req_id": 0x0102, "action": 7, "target": 2, "arg_i": -5, "arg_f": 1.5},
-     P("HBBif", 0x0102, 7, 2, -5, 1.5))
-case("request_link_upload_mode", "REQUEST", {"req_id": 5, "action": 10, "target": 3, "arg_i": 0, "arg_f": 0.0},
-     P("HBBif", 5, 10, 3, 0, 0.0))
-case("request_link_reboot", "REQUEST", {"req_id": 6, "action": 11, "target": 2, "arg_i": 0, "arg_f": 0.0},
-     P("HBBif", 6, 11, 2, 0, 0.0))
+# REQUEST.session (appended, optional, offset 12): CMD_STATE session of the sender, 0 = none (Router/ship-node requests)
+case("request", "REQUEST", {"req_id": 0x0102, "action": 7, "target": 2, "arg_i": -5, "arg_f": 1.5, "session": 0xDEADBEEF},
+     P("HBBifI", 0x0102, 7, 2, -5, 1.5, 0xDEADBEEF))
+case("request_link_upload_mode", "REQUEST", {"req_id": 5, "action": 10, "target": 3, "arg_i": 0, "arg_f": 0.0, "session": 0},
+     P("HBBifI", 5, 10, 3, 0, 0.0, 0))
+case("request_link_reboot", "REQUEST", {"req_id": 6, "action": 11, "target": 2, "arg_i": 0, "arg_f": 0.0, "session": 0},
+     P("HBBifI", 6, 11, 2, 0, 0.0, 0))
+case("request_vehicle_session", "REQUEST", {"req_id": 9, "action": 12, "target": 1, "arg_i": 0, "arg_f": 10.0, "session": 1},
+     P("HBBifI", 9, 12, 1, 0, 10.0, 1))
+decode_only.append({"name": "request_older_sender_no_session", "packet": "REQUEST",
+                    "hex": hexs(P("HBBif", 0x0102, 7, 2, -5, 1.5)),
+                    "decoded": {"req_id": 0x0102, "action": 7, "target": 2, "arg_i": -5, "arg_f": 1.5, "session": 0}})
 ch = [-1000, -500, 0, 500, 1000, -32768, 1, -1, 100, 200, 300, 400, 500, 600, 700, 800]
 case("rc_state", "RC_STATE", {"flags": 1, "reserved": 0, "ch": ch}, P("BB16h", 1, 0, *ch))
 case("rc_state_not_ok", "RC_STATE", {"flags": 0, "reserved": 0, "ch": [0] * 16}, P("BB16h", 0, 0, *([0] * 16)))
@@ -75,16 +81,21 @@ case("handset_telem_invalid_saturated", "HANDSET_TELEM",
       "roll": -32767 * 1e-4, "yaw": 32767 * 1e-4, "battery": NAN})
 
 # ------------------------------------------------------------------ starship
-T9B0 = {"ctrl_flags": 0, "go_refusal": 0, "degraded_bits": 0, "mission_profile": 0, "rc_rejected": 0}
+T9B0 = {"ctrl_flags": 0, "go_refusal": 0, "degraded_bits": 0, "mission_profile": 0, "rc_rejected": 0, "cmd_session": 0}
 vs = {"t_us": 4000000000, "t_ns": 4000000000123, "mode": 3, "mission_mode": 2, "mission_phase": 5, "ctrl_source": 1,
       "flags": 0x07, "failure_bits": 0x80000001, "sensor_state": 0x0155, "last_req_id": 0x0102,
       "last_req_status": 0, "rc_age": 0.02, "home_epoch": 2, "calib_state": 0x17,
-      "ctrl_flags": 0x0481, "go_refusal": 3, "degraded_bits": 0x05, "mission_profile": 255, "rc_rejected": 200}
+      "ctrl_flags": 0x0481, "go_refusal": 3, "degraded_bits": 0x05, "mission_profile": 255, "rc_rejected": 200,
+      "cmd_session": 0xABCD}
 case("vehicle_status", "VEHICLE_STATUS", vs,
-     P("IqBBBBBIHHBHBBHBBBB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2, 0x17, 0x0481, 3, 5, 255, 200),
+     P("IqBBBBBIHHBHBBHBBBBH", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2, 0x17, 0x0481, 3, 5, 255, 200, 0xABCD),
      {**vs, "rc_age": 20 * 0.001})
 case("vehicle_status_no_rc", "VEHICLE_STATUS", {**vs, "rc_age": NAN},
-     P("IqBBBBBIHHBHBBHBBBB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 65535, 2, 0x17, 0x0481, 3, 5, 255, 200))
+     P("IqBBBBBIHHBHBBHBBBBH", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 65535, 2, 0x17, 0x0481, 3, 5, 255, 200, 0xABCD))
+# older sender (before cmd_session was appended, has the T9b tail): cmd_session decodes as 0
+decode_only.append({"name": "vehicle_status_older_sender_no_cmd_session", "packet": "VEHICLE_STATUS",
+                    "hex": hexs(P("IqBBBBBIHHBHBBHBBBB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2, 0x17, 0x0481, 3, 5, 255, 200)),
+                    "decoded": {**vs, "rc_age": 20 * 0.001, "cmd_session": 0}})
 # older sender (before home_epoch was appended): the optional tail decodes as 0
 decode_only.append({"name": "vehicle_status_older_sender_no_home_epoch", "packet": "VEHICLE_STATUS",
                     "hex": hexs(P("IqBBBBBIHHBH", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20)),
@@ -97,10 +108,24 @@ decode_only.append({"name": "vehicle_status_older_sender_no_calib_state", "packe
 decode_only.append({"name": "vehicle_status_older_sender_no_t9b_fields", "packet": "VEHICLE_STATUS",
                     "hex": hexs(P("IqBBBBBIHHBHBB", 4000000000, 4000000000123, 3, 2, 5, 1, 7, 0x80000001, 0x0155, 0x0102, 0, 20, 2, 0x17)),
                     "decoded": {**vs, "rc_age": 20 * 0.001, **T9B0}})
-# RC_APPLIED (USB only): decoded switches, safe-seen bits, both source ages (65535 = none), reject counters
-ra = {"t_us": 5000, "sa": 1, "sb": 255, "sc": 2, "sd": 1, "se": 0, "safe_seen": 0x0D, "radio_age": 0.123,
-      "bench_age": NAN, "rejects": [1, 2, 255, 0]}
-case("rc_applied", "RC_APPLIED", ra, P("I5BBHH4B", 5000, 1, 255, 2, 1, 0, 0x0D, 123, 65535, 1, 2, 255, 0))
+# CMD_APPLIED (USB only): applied command fields, info flags, safe-seen bits, session, ages (65535 = none), rejects
+ca = {"t_us": 5000, "go": 1, "profile": 2, "vehicle_mode": 1, "motors": 1, "reset_button": 0, "failsafe": 0,
+      "flags": 0x03, "safe_seen": 0x0D, "session": 0xA1B2C3D4, "age": 0.123, "usb_age": NAN, "uart_age": 0.456,
+      "rejects": [1, 2, 255, 0]}
+case("cmd_applied", "CMD_APPLIED", ca,
+     P("I8BIHHH4B", 5000, 1, 2, 1, 1, 0, 0, 0x03, 0x0D, 0xA1B2C3D4, 123, 65535, 456, 1, 2, 255, 0))
+# CMD_STATE (0x13, 14 B): flags, version, session, go, profile, vehicle_mode, motors, reset_button, failsafe, reserved
+cs = {"flags": 3, "version": 1, "session": 0x12345678, "go": 1, "profile": 2, "vehicle_mode": 1, "motors": 1,
+      "reset_button": 0, "failsafe": 0, "reserved": 0}
+case("cmd_state", "CMD_STATE", cs, P("BBIBBBBBBH", 3, 1, 0x12345678, 1, 2, 1, 1, 0, 0, 0))
+cs_safe = {"flags": 1, "version": 1, "session": 1, "go": 0, "profile": 0, "vehicle_mode": 0, "motors": 0,
+           "reset_button": 0, "failsafe": 0, "reserved": 0}
+case("cmd_state_safe_idle", "CMD_STATE", cs_safe, P("BBIBBBBBBH", 1, 1, 1, 0, 0, 0, 0, 0, 0, 0))
+cs_fs = {"flags": 7, "version": 1, "session": 0xFFFFFFFF, "go": 0, "profile": 1, "vehicle_mode": 0, "motors": 0,
+         "reset_button": 1, "failsafe": 1, "reserved": 0}
+case("cmd_state_failsafe", "CMD_STATE", cs_fs, P("BBIBBBBBBH", 7, 1, 0xFFFFFFFF, 0, 1, 0, 0, 1, 1, 0))
+decode_only.append({"name": "cmd_state_longer_ignored", "packet": "CMD_STATE",
+                    "hex": hexs(P("BBIBBBBBBHB", 3, 1, 0x12345678, 1, 2, 1, 1, 0, 0, 0, 9)), "decoded": cs})
 q = [32767, -32767, 0, 16384]
 pos = [100, -100, 1234567]  # mm, beyond the old i16 range
 vel = [-327, 0, 1]
@@ -285,6 +310,22 @@ decode_fail += [
     {"name": "log_text_empty_payload", "packet": "LOG_TEXT", "hex": ""},
     {"name": "log_text_too_long", "packet": "LOG_TEXT", "hex": "00" + "41" * 234},
     {"name": "heartbeat_short", "packet": "HEARTBEAT", "hex": "0101785634120102030000"[:20]},
+    {"name": "cmd_state_short", "packet": "CMD_STATE", "hex": hexs(P("BBIBBBBBB", 3, 1, 1, 0, 0, 0, 0, 0, 0))},
+    {"name": "cmd_state_empty", "packet": "CMD_STATE", "hex": ""},
+]
+# CMD_STATE out-of-range field cases: each one rejects the whole frame (valid frame: cs_safe)
+_ok = [1, 1, 1, 0, 0, 0, 0, 0, 0, 0]
+_bad = [("flags_valid_clear", 0, 0), ("flags_valid_clear_pocket_live", 0, 2), ("flags_reserved_bit3", 0, 9),
+        ("flags_reserved_bit7", 0, 0x81), ("version_0", 1, 0), ("version_2", 1, 2), ("session_0", 2, 0),
+        ("go_2", 3, 2), ("go_255", 3, 255), ("profile_3", 4, 3), ("profile_255", 4, 255),
+        ("vehicle_mode_2", 5, 2), ("vehicle_mode_255", 5, 255), ("motors_2", 6, 2), ("motors_255", 6, 255),
+        ("reset_button_2", 7, 2), ("failsafe_2", 8, 2), ("failsafe_255", 8, 255), ("reserved_1", 9, 1),
+        ("reserved_0x8000", 9, 0x8000)]
+for _n, _i, _v in _bad:
+    _f = list(_ok)
+    _f[_i] = _v
+    decode_fail.append({"name": "cmd_state_bad_" + _n, "packet": "CMD_STATE", "hex": hexs(P("BBIBBBBBBH", *_f))})
+decode_fail += [
     {"name": "optional_one_byte", "packet": "OPTIONAL_TEST", "hex": "01"},
 ]
 

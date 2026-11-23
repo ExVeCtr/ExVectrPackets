@@ -43,9 +43,10 @@
     "action": 7,
     "target": 2,
     "arg_i": -5,
-    "arg_f": 1.5
+    "arg_f": 1.5,
+    "session": 3735928559
    },
-   "hex": "02010702fbffffff0000c03f"
+   "hex": "02010702fbffffff0000c03fefbeadde"
   },
   {
    "name": "request_link_upload_mode",
@@ -55,9 +56,10 @@
     "action": 10,
     "target": 3,
     "arg_i": 0,
-    "arg_f": 0.0
+    "arg_f": 0.0,
+    "session": 0
    },
-   "hex": "05000a030000000000000000"
+   "hex": "05000a03000000000000000000000000"
   },
   {
    "name": "request_link_reboot",
@@ -67,9 +69,23 @@
     "action": 11,
     "target": 2,
     "arg_i": 0,
-    "arg_f": 0.0
+    "arg_f": 0.0,
+    "session": 0
    },
-   "hex": "06000b020000000000000000"
+   "hex": "06000b02000000000000000000000000"
+  },
+  {
+   "name": "request_vehicle_session",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 9,
+    "action": 12,
+    "target": 1,
+    "arg_i": 0,
+    "arg_f": 10.0,
+    "session": 1
+   },
+   "hex": "09000c01000000000000204101000000"
   },
   {
    "name": "rc_state",
@@ -272,9 +288,10 @@
     "go_refusal": 3,
     "degraded_bits": 5,
     "mission_profile": 255,
-    "rc_rejected": 200
+    "rc_rejected": 200,
+    "cmd_session": 43981
    },
-   "hex": "00286bee7b409452a303000003020501070100008055010201001400021781040305ffc8",
+   "hex": "00286bee7b409452a303000003020501070100008055010201001400021781040305ffc8cdab",
    "decoded": {
     "t_us": 4000000000,
     "t_ns": 4000000000123,
@@ -294,7 +311,8 @@
     "go_refusal": 3,
     "degraded_bits": 5,
     "mission_profile": 255,
-    "rc_rejected": 200
+    "rc_rejected": 200,
+    "cmd_session": 43981
    }
   },
   {
@@ -319,23 +337,28 @@
     "go_refusal": 3,
     "degraded_bits": 5,
     "mission_profile": 255,
-    "rc_rejected": 200
+    "rc_rejected": 200,
+    "cmd_session": 43981
    },
-   "hex": "00286bee7b409452a30300000302050107010000805501020100ffff021781040305ffc8"
+   "hex": "00286bee7b409452a30300000302050107010000805501020100ffff021781040305ffc8cdab"
   },
   {
-   "name": "rc_applied",
-   "packet": "RC_APPLIED",
+   "name": "cmd_applied",
+   "packet": "CMD_APPLIED",
    "values": {
     "t_us": 5000,
-    "sa": 1,
-    "sb": 255,
-    "sc": 2,
-    "sd": 1,
-    "se": 0,
+    "go": 1,
+    "profile": 2,
+    "vehicle_mode": 1,
+    "motors": 1,
+    "reset_button": 0,
+    "failsafe": 0,
+    "flags": 3,
     "safe_seen": 13,
-    "radio_age": 0.123,
-    "bench_age": null,
+    "session": 2712847316,
+    "age": 0.123,
+    "usb_age": null,
+    "uart_age": 0.456,
     "rejects": [
      1,
      2,
@@ -343,7 +366,58 @@
      0
     ]
    },
-   "hex": "8813000001ff0201000d7b00ffff0102ff00"
+   "hex": "88130000010201010000030dd4c3b2a17b00ffffc8010102ff00"
+  },
+  {
+   "name": "cmd_state",
+   "packet": "CMD_STATE",
+   "values": {
+    "flags": 3,
+    "version": 1,
+    "session": 305419896,
+    "go": 1,
+    "profile": 2,
+    "vehicle_mode": 1,
+    "motors": 1,
+    "reset_button": 0,
+    "failsafe": 0,
+    "reserved": 0
+   },
+   "hex": "0301785634120102010100000000"
+  },
+  {
+   "name": "cmd_state_safe_idle",
+   "packet": "CMD_STATE",
+   "values": {
+    "flags": 1,
+    "version": 1,
+    "session": 1,
+    "go": 0,
+    "profile": 0,
+    "vehicle_mode": 0,
+    "motors": 0,
+    "reset_button": 0,
+    "failsafe": 0,
+    "reserved": 0
+   },
+   "hex": "0101010000000000000000000000"
+  },
+  {
+   "name": "cmd_state_failsafe",
+   "packet": "CMD_STATE",
+   "values": {
+    "flags": 7,
+    "version": 1,
+    "session": 4294967295,
+    "go": 0,
+    "profile": 1,
+    "vehicle_mode": 0,
+    "motors": 0,
+    "reset_button": 1,
+    "failsafe": 1,
+    "reserved": 0
+   },
+   "hex": "0701ffffffff0001000001010000"
   },
   {
    "name": "air_pose",
@@ -2749,6 +2823,46 @@
  ],
  "decode_only": [
   {
+   "name": "request_older_sender_no_session",
+   "packet": "REQUEST",
+   "hex": "02010702fbffffff0000c03f",
+   "decoded": {
+    "req_id": 258,
+    "action": 7,
+    "target": 2,
+    "arg_i": -5,
+    "arg_f": 1.5,
+    "session": 0
+   }
+  },
+  {
+   "name": "vehicle_status_older_sender_no_cmd_session",
+   "packet": "VEHICLE_STATUS",
+   "hex": "00286bee7b409452a303000003020501070100008055010201001400021781040305ffc8",
+   "decoded": {
+    "t_us": 4000000000,
+    "t_ns": 4000000000123,
+    "mode": 3,
+    "mission_mode": 2,
+    "mission_phase": 5,
+    "ctrl_source": 1,
+    "flags": 7,
+    "failure_bits": 2147483649,
+    "sensor_state": 341,
+    "last_req_id": 258,
+    "last_req_status": 0,
+    "rc_age": 0.02,
+    "home_epoch": 2,
+    "calib_state": 23,
+    "ctrl_flags": 1153,
+    "go_refusal": 3,
+    "degraded_bits": 5,
+    "mission_profile": 255,
+    "rc_rejected": 200,
+    "cmd_session": 0
+   }
+  },
+  {
    "name": "vehicle_status_older_sender_no_home_epoch",
    "packet": "VEHICLE_STATUS",
    "hex": "00286bee7b409452a303000003020501070100008055010201001400",
@@ -2771,7 +2885,8 @@
     "go_refusal": 0,
     "degraded_bits": 0,
     "mission_profile": 0,
-    "rc_rejected": 0
+    "rc_rejected": 0,
+    "cmd_session": 0
    }
   },
   {
@@ -2797,7 +2912,8 @@
     "go_refusal": 0,
     "degraded_bits": 0,
     "mission_profile": 0,
-    "rc_rejected": 0
+    "rc_rejected": 0,
+    "cmd_session": 0
    }
   },
   {
@@ -2823,7 +2939,25 @@
     "go_refusal": 0,
     "degraded_bits": 0,
     "mission_profile": 0,
-    "rc_rejected": 0
+    "rc_rejected": 0,
+    "cmd_session": 0
+   }
+  },
+  {
+   "name": "cmd_state_longer_ignored",
+   "packet": "CMD_STATE",
+   "hex": "030178563412010201010000000009",
+   "decoded": {
+    "flags": 3,
+    "version": 1,
+    "session": 305419896,
+    "go": 1,
+    "profile": 2,
+    "vehicle_mode": 1,
+    "motors": 1,
+    "reset_button": 0,
+    "failsafe": 0,
+    "reserved": 0
    }
   },
   {
@@ -3045,6 +3179,116 @@
    "name": "heartbeat_short",
    "packet": "HEARTBEAT",
    "hex": "01017856341201020300"
+  },
+  {
+   "name": "cmd_state_short",
+   "packet": "CMD_STATE",
+   "hex": "030101000000000000000000"
+  },
+  {
+   "name": "cmd_state_empty",
+   "packet": "CMD_STATE",
+   "hex": ""
+  },
+  {
+   "name": "cmd_state_bad_flags_valid_clear",
+   "packet": "CMD_STATE",
+   "hex": "0001010000000000000000000000"
+  },
+  {
+   "name": "cmd_state_bad_flags_valid_clear_pocket_live",
+   "packet": "CMD_STATE",
+   "hex": "0201010000000000000000000000"
+  },
+  {
+   "name": "cmd_state_bad_flags_reserved_bit3",
+   "packet": "CMD_STATE",
+   "hex": "0901010000000000000000000000"
+  },
+  {
+   "name": "cmd_state_bad_flags_reserved_bit7",
+   "packet": "CMD_STATE",
+   "hex": "8101010000000000000000000000"
+  },
+  {
+   "name": "cmd_state_bad_version_0",
+   "packet": "CMD_STATE",
+   "hex": "0100010000000000000000000000"
+  },
+  {
+   "name": "cmd_state_bad_version_2",
+   "packet": "CMD_STATE",
+   "hex": "0102010000000000000000000000"
+  },
+  {
+   "name": "cmd_state_bad_session_0",
+   "packet": "CMD_STATE",
+   "hex": "0101000000000000000000000000"
+  },
+  {
+   "name": "cmd_state_bad_go_2",
+   "packet": "CMD_STATE",
+   "hex": "0101010000000200000000000000"
+  },
+  {
+   "name": "cmd_state_bad_go_255",
+   "packet": "CMD_STATE",
+   "hex": "010101000000ff00000000000000"
+  },
+  {
+   "name": "cmd_state_bad_profile_3",
+   "packet": "CMD_STATE",
+   "hex": "0101010000000003000000000000"
+  },
+  {
+   "name": "cmd_state_bad_profile_255",
+   "packet": "CMD_STATE",
+   "hex": "01010100000000ff000000000000"
+  },
+  {
+   "name": "cmd_state_bad_vehicle_mode_2",
+   "packet": "CMD_STATE",
+   "hex": "0101010000000000020000000000"
+  },
+  {
+   "name": "cmd_state_bad_vehicle_mode_255",
+   "packet": "CMD_STATE",
+   "hex": "0101010000000000ff0000000000"
+  },
+  {
+   "name": "cmd_state_bad_motors_2",
+   "packet": "CMD_STATE",
+   "hex": "0101010000000000000200000000"
+  },
+  {
+   "name": "cmd_state_bad_motors_255",
+   "packet": "CMD_STATE",
+   "hex": "010101000000000000ff00000000"
+  },
+  {
+   "name": "cmd_state_bad_reset_button_2",
+   "packet": "CMD_STATE",
+   "hex": "0101010000000000000002000000"
+  },
+  {
+   "name": "cmd_state_bad_failsafe_2",
+   "packet": "CMD_STATE",
+   "hex": "0101010000000000000000020000"
+  },
+  {
+   "name": "cmd_state_bad_failsafe_255",
+   "packet": "CMD_STATE",
+   "hex": "0101010000000000000000ff0000"
+  },
+  {
+   "name": "cmd_state_bad_reserved_1",
+   "packet": "CMD_STATE",
+   "hex": "0101010000000000000000000100"
+  },
+  {
+   "name": "cmd_state_bad_reserved_0x8000",
+   "packet": "CMD_STATE",
+   "hex": "0101010000000000000000000080"
   },
   {
    "name": "optional_one_byte",

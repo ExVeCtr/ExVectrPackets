@@ -272,7 +272,7 @@ static const Ops kOps[] = {
     OPS("HEARTBEAT", Heartbeat), OPS("LINK_STATS", LinkStats), OPS("LOG_TEXT", LogText), OPS("LINK_CONFIG", LinkConfig),
     OPS("HANDSET_TELEM", HandsetTelem), OPS("RC_STATE", RcState), OPS("REQUEST", Request),
     OPS("REQUEST_ACK", RequestAck), OPS("VEHICLE_STATUS", VehicleStatus), OPS("AIR_POSE", AirPose), OPS("AIR_ACTUATORS", AirActuators), OPS("AIR_MISSION", AirMission), OPS("AIR_GNSS", AirGnss), OPS("AIR_GNSS_INFO", AirGnssInfo), OPS("HOME_POSITION", HomePosition),
-    OPS("POSE", Pose), OPS("ACTUATORS", Actuators), OPS("MISSION", Mission), OPS("GNSS", Gnss), OPS("RC_APPLIED", RcApplied),
+    OPS("POSE", Pose), OPS("ACTUATORS", Actuators), OPS("MISSION", Mission), OPS("GNSS", Gnss), OPS("CMD_APPLIED", CmdApplied), OPS("CMD_STATE", CmdState),
     OPS("IMU_RAW", ImuRaw), OPS("ESTIMATOR", Estimator), OPS("TASK_TIMING", TaskTiming), OPS("CALIBRATION", Calibration),
     OPS("KITCHEN_SINK", KitchenSink), OPS("OPTIONAL_TEST", OptionalTest),
 };
@@ -309,6 +309,30 @@ static void test_decode_failure_leaves_object_untouched() {
     TEST_ASSERT_FALSE(p.decode(shortBuf, sizeof shortBuf));
     TEST_ASSERT_EQUAL_UINT8(9, p.flags);
     TEST_ASSERT_FALSE(p.decode(nullptr, 34));
+}
+
+static void test_cmd_state_strict() {
+    CmdState p;
+    p.flags = 1;
+    p.version = 1;
+    p.session = 7;
+    uint8_t buf[14];
+    TEST_ASSERT_EQUAL_UINT32(14, p.encode(buf, sizeof buf));
+    CmdState q;
+    q.session = 99;
+    TEST_ASSERT_TRUE(q.decode(buf, sizeof buf));
+    TEST_ASSERT_EQUAL_UINT32(7, q.session);
+    buf[6] = 2;  // go out of range: whole frame rejected, object untouched
+    q.session = 99;
+    TEST_ASSERT_FALSE(q.decode(buf, sizeof buf));
+    TEST_ASSERT_EQUAL_UINT32(99, q.session);
+    p.session = 0;  // not allowed on encode either
+    TEST_ASSERT_EQUAL_UINT32(0, p.encode(buf, sizeof buf));
+    Request r;
+    uint8_t old[12] = {0};
+    r.session = 5;
+    TEST_ASSERT_TRUE(r.decode(old, sizeof old));  // older sender without session
+    TEST_ASSERT_EQUAL_UINT32(0, r.session);
 }
 
 static void test_fixed_rules_direct() {
@@ -387,7 +411,7 @@ static void test_metadata_constants() {
     TEST_ASSERT_EQUAL(0x25, AirGnssInfo::kPort);
     TEST_ASSERT_EQUAL(10, AirGnssInfo::kMaxSize);
     TEST_ASSERT_EQUAL_UINT16(1, AirGnssInfo::kAirRateHz);
-    TEST_ASSERT_EQUAL(36, VehicleStatus::kMaxSize);
+    TEST_ASSERT_EQUAL(38, VehicleStatus::kMaxSize);
     TEST_ASSERT_EQUAL(28, VehicleStatus::kMinSize);
     TEST_ASSERT_EQUAL_UINT16(10, Gnss::kUsbRateHz);
     TEST_ASSERT_EQUAL(0x50, HomePosition::kPort);
@@ -395,7 +419,7 @@ static void test_metadata_constants() {
     // every air-eligible packet fits the radio budget: < 3000 B/s including 7 bytes overhead, i.e. below 49 % of the
     // 6150 B/s air downlink entry capacity (was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION; 2150
     // before AIR_GNSS (290 B/s) and AIR_GNSS_INFO (17 B/s); 2500 before AIR_POSE went from 10 to 25 Hz,
-    // +555 B/s, 2026-11-22; the set is 2901 B/s now)
+    // +555 B/s, 2026-11-22; the set is 2959 B/s now)
     unsigned total = (VehicleStatus::kMaxSize + 7) * VehicleStatus::kAirRateHz + (AirPose::kMaxSize + 7) * AirPose::kAirRateHz +
                      (AirActuators::kMaxSize + 7) * AirActuators::kAirRateHz + (AirMission::kMaxSize + 7) * AirMission::kAirRateHz + (AirGnss::kMaxSize + 7) * AirGnss::kAirRateHz + (AirGnssInfo::kMaxSize + 7) * AirGnssInfo::kAirRateHz +
                      (HandsetTelem::kMaxSize + 7) * HandsetTelem::kAirRateHz + (LinkStats::kMaxSize + 7) * LinkStats::kAirRateHz;
@@ -461,6 +485,7 @@ int main(int, char**) {
     RUN_TEST(test_vectors_decode);
     RUN_TEST(test_vectors_decode_failures);
     RUN_TEST(test_decode_failure_leaves_object_untouched);
+    RUN_TEST(test_cmd_state_strict);
     RUN_TEST(test_fixed_rules_direct);
     RUN_TEST(test_metadata_constants);
     RUN_TEST(test_log_text_helper);

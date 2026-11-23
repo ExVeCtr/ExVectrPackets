@@ -5,7 +5,7 @@ from .starship import *  # noqa: F401,F403
 from . import common, starship  # noqa: E402
 
 #: FNV-1a-32 over the canonical serialisation of all schema files (carried in heartbeats).
-SCHEMA_HASH = 0x65E4E6E3
+SCHEMA_HASH = 0xF1941A87
 
 #: port -> packet class
 PACKETS_BY_PORT = {
@@ -16,6 +16,7 @@ PACKETS_BY_PORT = {
     0x10: common.RcState,
     0x11: common.Request,
     0x12: common.RequestAck,
+    0x13: starship.CmdState,
     0x20: starship.VehicleStatus,
     0x21: starship.AirPose,
     0x22: starship.AirActuators,
@@ -25,7 +26,7 @@ PACKETS_BY_PORT = {
     0x80: starship.Pose,
     0x81: starship.Actuators,
     0x82: starship.Mission,
-    0x84: starship.RcApplied,
+    0x84: starship.CmdApplied,
     0x83: starship.Gnss,
     0x90: starship.ImuRaw,
     0x91: starship.Estimator,
@@ -44,6 +45,7 @@ PACKETS_BY_NAME = {
     'RC_STATE': common.RcState,
     'REQUEST': common.Request,
     'REQUEST_ACK': common.RequestAck,
+    'CMD_STATE': starship.CmdState,
     'VEHICLE_STATUS': starship.VehicleStatus,
     'AIR_POSE': starship.AirPose,
     'AIR_ACTUATORS': starship.AirActuators,
@@ -53,7 +55,7 @@ PACKETS_BY_NAME = {
     'POSE': starship.Pose,
     'ACTUATORS': starship.Actuators,
     'MISSION': starship.Mission,
-    'RC_APPLIED': starship.RcApplied,
+    'CMD_APPLIED': starship.CmdApplied,
     'GNSS': starship.Gnss,
     'IMU_RAW': starship.ImuRaw,
     'ESTIMATOR': starship.Estimator,
