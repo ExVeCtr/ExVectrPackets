@@ -38,6 +38,7 @@ All of the above that have a USB rate, plus ports 0x80 and up (never forwarded t
 | slow | `GNSS` (lat/lon radians, f64) | 0x83 | 50 | 10 |
 | slow | `HANDSET_TELEM` | 0x03 | 34 | 2 |
 | debug | `IMU_RAW` 0x90 (100 Hz), `ESTIMATOR` 0x91 (20 Hz), `TASK_TIMING` 0x92 (5 Hz) | | 48/40/37 | |
+| slow | `MISSION_PARAMS` 0x26 (mission parameters in use: ascent speed, apogee altitude, hover and profile 1 hold times; radio every 2 s, not in the budget test: +15.5 B/s, set about 2994.5 B/s) | 0x26 | 24 | 1 |
 | debug | `CALIBRATION` 0x93 (applied sensor calibration: offsets, 3x3 matrices, sources, EKF gyro bias), every 2 s | | 164 | 0.5 |
 
 `AIR_POSE` is not sent on USB (`POSE` supersedes it); a ground station connected by radio only uses `AIR_POSE`, one connected by USB uses `POSE`. The rates are the targets for the flight software's low-priority telemetry task; they are metadata (`kUsbRateHz`, `kAirRateHz`), not enforced by the library.

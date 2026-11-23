@@ -257,6 +257,19 @@
    "hex": "1400170100000000000000004d000000"
   },
   {
+   "name": "request_set_mission_param",
+   "packet": "REQUEST",
+   "values": {
+    "req_id": 21,
+    "action": 24,
+    "target": 1,
+    "arg_i": 1,
+    "arg_f": 4.5,
+    "session": 77
+   },
+   "hex": "1500180101000000000090404d000000"
+  },
+  {
    "name": "rc_state",
    "packet": "RC_STATE",
    "values": {
@@ -1290,6 +1303,27 @@
      null,
      -0.0020000000949949026
     ]
+   }
+  },
+  {
+   "name": "mission_params",
+   "packet": "MISSION_PARAMS",
+   "values": {
+    "ascent_speed": 4.5,
+    "apogee_altitude": 120.0,
+    "hover_hold_s": 30.0,
+    "p1_hold_1_s": 10.0,
+    "p1_hold_2_s": null,
+    "p1_hold_3_s": 15.0
+   },
+   "hex": "000090400000f0420000f041000020410000c07f00007041",
+   "decoded": {
+    "ascent_speed": 4.5,
+    "apogee_altitude": 120.0,
+    "hover_hold_s": 30.0,
+    "p1_hold_1_s": 10.0,
+    "p1_hold_2_s": null,
+    "p1_hold_3_s": 15.0
    }
   },
   {

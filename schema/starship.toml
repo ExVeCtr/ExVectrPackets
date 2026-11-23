@@ -45,6 +45,16 @@ doc = "Starship vehicle telemetry."
 # SIM_FLAP_SLOW (21): arg_i = flap 0..3, arg_f = servo rate factor clamp 0.05..1 (1 = normal). SIM_FAULT_CLEAR (22): args ignored.
 # GET_HOME_POSITION (23): args ignored. DONE, then the vehicle sends the plain HOME_POSITION packet (0x50) to the sender; if
 # no position reference is set: REJECTED_STATE detail 4 'no home yet' (no packet). Not tied to the ground rule, not simulation only.
+# SET_MISSION_PARAM (24): arg_i = parameter id, arg_f = value (SI). Accepted only on the ground (REJECTED_STATE detail 1) with the
+# latched session (detail 3); an unknown id or a non-finite / out-of-range value = REJECTED_INVALID detail 1. Idempotent by req_id.
+# Not stored across a reboot (defaults at boot). The vehicle reports the values in MISSION_PARAMS (0x26). Ids (unit, default, range):
+#   1 ASCENT_SPEED     m/s, 7,   0.5..10   (climb speed of the flight profile (2) to the apogee waypoint)
+#   2 APOGEE_ALTITUDE  m,   120, 2..1000   (above the position reference)
+#   3 HOVER_HOLD_S     s,   30,  0..600    (profile 0 hover test hold)
+#   4 P1_HOLD_1_S      s,   10,  0..600    (profile 1 first hold, at 1 m)
+#   5 P1_HOLD_2_S      s,   15,  0..600    (profile 1 hold at 2 m x)
+#   6 P1_HOLD_3_S      s,   15,  0..600    (profile 1 hold at 2 m x and 2 m y)
+#   7..31 reserved (REJECTED_INVALID detail 1). The stop altitude is action 13 (not a mission parameter id).
 # Detail codes: REJECTED_STATE 2: 1 not on the ground, 2 zeroing refusal, 3 session, 4 no home yet, 5 not in simulation,
 # 6 calibration refused. REJECTED_INVALID 3: 1 bad argument, 2 wrong target, 3 unknown or retired action.
 # Vehicle-directed (target 1) refusal codes in REQUEST_ACK (every copy is acked): REJECTED_STATE detail 1 = not on the ground
@@ -54,7 +64,7 @@ doc = "Starship vehicle telemetry."
 # unknown action = REJECTED_INVALID detail 3. DONE detail = 0.
 [enum.RequestAction]
 type = "u8"
-values = { NONE = 0, CALIB_GYRO_START = 1, CALIB_GYRO_STOP = 2, CALIB_ACCEL_START = 3, CALIB_ACCEL_STOP = 4, CALIB_MAG_START = 5, CALIB_MAG_STOP = 6, CALIB_APPLY = 7, SAVE_CONFIG = 8, SYSTEM_RESET = 9, LINK_UPLOAD_MODE = 10, LINK_REBOOT = 11, ZERO_ESTIMATORS = 12, SET_STOP_ALTITUDE = 13, CALIB_CONTROL = 14, SIM_WIND_SPEED = 15, SIM_WIND_DIRECTION = 16, SIM_GUST_STRENGTH = 17, SIM_GUST_PERIOD = 18, SIM_GUST_SEED = 19, SIM_FLAP_STUCK = 20, SIM_FLAP_SLOW = 21, SIM_FAULT_CLEAR = 22, GET_HOME_POSITION = 23 }
+values = { NONE = 0, CALIB_GYRO_START = 1, CALIB_GYRO_STOP = 2, CALIB_ACCEL_START = 3, CALIB_ACCEL_STOP = 4, CALIB_MAG_START = 5, CALIB_MAG_STOP = 6, CALIB_APPLY = 7, SAVE_CONFIG = 8, SYSTEM_RESET = 9, LINK_UPLOAD_MODE = 10, LINK_REBOOT = 11, ZERO_ESTIMATORS = 12, SET_STOP_ALTITUDE = 13, CALIB_CONTROL = 14, SIM_WIND_SPEED = 15, SIM_WIND_DIRECTION = 16, SIM_GUST_STRENGTH = 17, SIM_GUST_PERIOD = 18, SIM_GUST_SEED = 19, SIM_FLAP_STUCK = 20, SIM_FLAP_SLOW = 21, SIM_FAULT_CLEAR = 22, GET_HOME_POSITION = 23, SET_MISSION_PARAM = 24 }
 
 # Frame of the raw sensor values that CALIBRATION applies to (IMU_RAW gyro, accel, mag).
 [enum.ImuFrame]
@@ -375,6 +385,21 @@ fields = [
   { name = "mag_offset",    type = "f32", count = 3, unit = "T", doc = "hard-iron offset, subtracted from the raw mag, raw frame" },
   { name = "mag_matrix",    type = "f32", count = 9, doc = "row-major 3x3, soft-iron/scale times sensor->body (dimensionless: T in, T out)" },
   { name = "gyro_bias_est", type = "f32", count = 3, unit = "rad/s", doc = "attitude EKF gyro bias state, body frame, subtracted from the calibrated gyro" },
+]
+
+[packet.MISSION_PARAMS]
+port = 0x26
+qos = "telemetry"
+latest = true
+rate_usb = 1
+doc = "Mission parameters the vehicle currently uses (readback of REQUEST action SET_MISSION_PARAM 24; the stop altitude is in MISSION.stop_altitude and not repeated). Plain state packet, vehicle to ground station: USB at 1 Hz, radio at 0.5 Hz (every 2 s; the integer rate_air cannot express it, so it is not set and the air budget test does not count it: 31 B frame * 0.5 = 15.5 B/s, air set 2979 -> about 2994.5 B/s, still < 3000). NaN = unknown. Defaults at boot (not stored): ascent_speed 7 m/s, apogee_altitude 120 m, hover_hold_s 30 s, p1_hold_1_s 10 s, p1_hold_2_s 15 s, p1_hold_3_s 15 s."
+fields = [
+  { name = "ascent_speed",     type = "f32", unit = "m/s", doc = "climb speed to the apogee waypoint (flight profile)" },
+  { name = "apogee_altitude",  type = "f32", unit = "m", doc = "apogee waypoint altitude above the position reference" },
+  { name = "hover_hold_s",     type = "f32", unit = "s", doc = "profile 0 hover test hold time" },
+  { name = "p1_hold_1_s",      type = "f32", unit = "s", doc = "profile 1 first hold (1 m)" },
+  { name = "p1_hold_2_s",      type = "f32", unit = "s", doc = "profile 1 hold at 2 m x" },
+  { name = "p1_hold_3_s",      type = "f32", unit = "s", doc = "profile 1 hold at 2 m x and 2 m y" },
 ]
 
 # ---------------------------------------------------------------- request objects

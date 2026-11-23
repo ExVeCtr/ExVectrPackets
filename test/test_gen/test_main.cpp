@@ -271,7 +271,7 @@ template <class T> bool tryDecode(const uint8_t* p, size_t n) { T t; return t.de
 static const Ops kOps[] = {
     OPS("HEARTBEAT", Heartbeat), OPS("LINK_STATS", LinkStats), OPS("LOG_TEXT", LogText), OPS("LINK_CONFIG", LinkConfig),
     OPS("HANDSET_TELEM", HandsetTelem), OPS("RC_STATE", RcState), OPS("REQUEST", Request),
-    OPS("REQUEST_ACK", RequestAck), OPS("VEHICLE_STATUS", VehicleStatus), OPS("AIR_POSE", AirPose), OPS("AIR_ACTUATORS", AirActuators), OPS("AIR_MISSION", AirMission), OPS("AIR_GNSS", AirGnss), OPS("AIR_GNSS_INFO", AirGnssInfo), OPS("HOME_POSITION", HomePosition),
+    OPS("REQUEST_ACK", RequestAck), OPS("VEHICLE_STATUS", VehicleStatus), OPS("AIR_POSE", AirPose), OPS("AIR_ACTUATORS", AirActuators), OPS("AIR_MISSION", AirMission), OPS("AIR_GNSS", AirGnss), OPS("AIR_GNSS_INFO", AirGnssInfo), OPS("HOME_POSITION", HomePosition), OPS("MISSION_PARAMS", MissionParams),
     OPS("POSE", Pose), OPS("ACTUATORS", Actuators), OPS("MISSION", Mission), OPS("GNSS", Gnss), OPS("CMD_APPLIED", CmdApplied), OPS("CMD_STATE", CmdState),
     OPS("IMU_RAW", ImuRaw), OPS("ESTIMATOR", Estimator), OPS("TASK_TIMING", TaskTiming), OPS("CALIBRATION", Calibration),
     OPS("KITCHEN_SINK", KitchenSink), OPS("OPTIONAL_TEST", OptionalTest),

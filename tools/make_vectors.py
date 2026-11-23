@@ -71,6 +71,8 @@ case("request_sim_fault_clear", "REQUEST", {"req_id": 20, "action": 22, "target"
      P("HBBifI", 20, 22, 1, 0, 0.0, 77))
 case("request_get_home_position", "REQUEST", {"req_id": 20, "action": 23, "target": 1, "arg_i": 0, "arg_f": 0.0, "session": 77},
      P("HBBifI", 20, 23, 1, 0, 0.0, 77))
+case("request_set_mission_param", "REQUEST", {"req_id": 21, "action": 24, "target": 1, "arg_i": 1, "arg_f": 4.5, "session": 77},
+     P("HBBifI", 21, 24, 1, 1, 4.5, 77))
 decode_only.append({"name": "request_older_sender_no_session", "packet": "REQUEST",
                     "hex": hexs(P("HBBif", 0x0102, 7, 2, -5, 1.5)),
                     "decoded": {"req_id": 0x0102, "action": 7, "target": 2, "arg_i": -5, "arg_f": 1.5, "session": 0}})
@@ -263,6 +265,9 @@ case("calibration", "CALIBRATION", cv,
      {**cv, "mag_offset": [struct.unpack("<f", struct.pack("<f", v))[0] for v in cv["mag_offset"]],
       "gyro_bias_est": [struct.unpack("<f", struct.pack("<f", 0.001))[0], NAN,
                         struct.unpack("<f", struct.pack("<f", -0.002))[0]]})
+mpv = {"ascent_speed": 4.5, "apogee_altitude": 120.0, "hover_hold_s": 30.0, "p1_hold_1_s": 10.0, "p1_hold_2_s": NAN,
+       "p1_hold_3_s": 15.0}
+case("mission_params", "MISSION_PARAMS", mpv, P("6f", 4.5, 120.0, 30.0, 10.0, float("nan"), 15.0), mpv)
 tavg = [100, 200, 300, 400, 500, 600, 700, 65535]
 tmax = [150, 250, 350, 450, 550, 650, 750, 65534]
 tv = {"t_us": 11, "count": 7, "avg": [r * 1e-6 for r in tavg[:7]] + [NAN], "max": [r * 1e-6 for r in tmax]}

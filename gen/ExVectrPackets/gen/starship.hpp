@@ -32,6 +32,7 @@ enum class RequestAction : uint8_t {
     kSimFlapSlow = 21,
     kSimFaultClear = 22,
     kGetHomePosition = 23,
+    kSetMissionParam = 24,
 };
 
 enum class ImuFrame : uint8_t {
@@ -1309,6 +1310,66 @@ struct Calibration {
         v.array("mag_offset", mag_offset);
         v.array("mag_matrix", mag_matrix);
         v.array("gyro_bias_est", gyro_bias_est);
+        (void)v;
+    }
+};
+
+/// Mission parameters the vehicle currently uses (readback of REQUEST action SET_MISSION_PARAM 24; the stop altitude is in MISSION.stop_altitude and not repeated). Plain state packet, vehicle to ground station: USB at 1 Hz, radio at 0.5 Hz (every 2 s; the integer rate_air cannot express it, so it is not set and the air budget test does not count it: 31 B frame * 0.5 = 15.5 B/s, air set 2979 -> about 2994.5 B/s, still < 3000). NaN = unknown. Defaults at boot (not stored): ascent_speed 7 m/s, apogee_altitude 120 m, hover_hold_s 30 s, p1_hold_1_s 10 s, p1_hold_2_s 15 s, p1_hold_3_s 15 s.
+struct MissionParams {
+    static constexpr uint8_t kPort = 0x26;
+    static constexpr bool kIsHeartbeat = false;
+    static constexpr uint8_t kQos = 3; // telemetry (Control 0, Link 1, Event 2, Telemetry 3)
+    static constexpr bool kLatest = true;
+    static constexpr bool kAirEligible = true;
+    static constexpr uint16_t kAirRateHz = 0;
+    static constexpr uint16_t kUsbRateHz = 1;
+    static constexpr size_t kMaxSize = 24;
+    static constexpr size_t kMinSize = 24;
+
+    float ascent_speed = {}; // [m/s] climb speed to the apogee waypoint (flight profile)
+    float apogee_altitude = {}; // [m] apogee waypoint altitude above the position reference
+    float hover_hold_s = {}; // [s] profile 0 hover test hold time
+    float p1_hold_1_s = {}; // [s] profile 1 first hold (1 m)
+    float p1_hold_2_s = {}; // [s] profile 1 hold at 2 m x
+    float p1_hold_3_s = {}; // [s] profile 1 hold at 2 m x and 2 m y
+
+    /// Bytes written, 0 on failure (null buffer or too small).
+    size_t encode(uint8_t* out, size_t cap) const {
+        constexpr size_t total = 24;
+        if (out == nullptr || cap < total) return 0;
+        codec::put_f32(out + 0, ascent_speed);
+        codec::put_f32(out + 4, apogee_altitude);
+        codec::put_f32(out + 8, hover_hold_s);
+        codec::put_f32(out + 12, p1_hold_1_s);
+        codec::put_f32(out + 16, p1_hold_2_s);
+        codec::put_f32(out + 20, p1_hold_3_s);
+        return total;
+    }
+
+    /// False if the payload is shorter than kMinSize (or a tail is too long). Longer payloads are accepted (extra
+    /// bytes ignored); optional fields missing from shorter payloads get their default/NaN.
+    bool decode(const uint8_t* in, size_t len) {
+        if (in == nullptr || len < kMinSize) return false;
+        MissionParams t;
+        t.ascent_speed = codec::get_f32(in + 0);
+        t.apogee_altitude = codec::get_f32(in + 4);
+        t.hover_hold_s = codec::get_f32(in + 8);
+        t.p1_hold_1_s = codec::get_f32(in + 12);
+        t.p1_hold_2_s = codec::get_f32(in + 16);
+        t.p1_hold_3_s = codec::get_f32(in + 20);
+        *this = t;
+        return true;
+    }
+
+    /// Calls v.scalar/array/chars/tail(name, member) for every field (used by tests and tooling).
+    template <class V>
+    void visit(V& v) {
+        v.scalar("ascent_speed", ascent_speed);
+        v.scalar("apogee_altitude", apogee_altitude);
+        v.scalar("hover_hold_s", hover_hold_s);
+        v.scalar("p1_hold_1_s", p1_hold_1_s);
+        v.scalar("p1_hold_2_s", p1_hold_2_s);
+        v.scalar("p1_hold_3_s", p1_hold_3_s);
         (void)v;
     }
 };

@@ -31,6 +31,7 @@ class RequestAction(enum.IntEnum):
     SIM_FLAP_SLOW = 21
     SIM_FAULT_CLEAR = 22
     GET_HOME_POSITION = 23
+    SET_MISSION_PARAM = 24
 
 
 class ImuFrame(enum.IntEnum):
@@ -1162,6 +1163,52 @@ class Calibration:
         t.mag_offset = [_rt.get(data, '<f', 104 + i * 4) for i in range(3)]
         t.mag_matrix = [_rt.get(data, '<f', 116 + i * 4) for i in range(9)]
         t.gyro_bias_est = [_rt.get(data, '<f', 152 + i * 4) for i in range(3)]
+        return t
+
+
+@dataclasses.dataclass
+class MissionParams:
+    """Mission parameters the vehicle currently uses (readback of REQUEST action SET_MISSION_PARAM 24; the stop altitude is in MISSION.stop_altitude and not repeated). Plain state packet, vehicle to ground station: USB at 1 Hz, radio at 0.5 Hz (every 2 s; the integer rate_air cannot express it, so it is not set and the air budget test does not count it: 31 B frame * 0.5 = 15.5 B/s, air set 2979 -> about 2994.5 B/s, still < 3000). NaN = unknown. Defaults at boot (not stored): ascent_speed 7 m/s, apogee_altitude 120 m, hover_hold_s 30 s, p1_hold_1_s 10 s, p1_hold_2_s 15 s, p1_hold_3_s 15 s."""
+    PORT: ClassVar[Optional[int]] = 0x26
+    IS_HEARTBEAT: ClassVar[bool] = False
+    QOS: ClassVar[int] = 3  # telemetry
+    LATEST: ClassVar[bool] = True
+    AIR_ELIGIBLE: ClassVar[bool] = True
+    AIR_RATE_HZ: ClassVar[int] = 0
+    USB_RATE_HZ: ClassVar[int] = 1
+    MAX_SIZE: ClassVar[int] = 24
+    MIN_SIZE: ClassVar[int] = 24
+    ascent_speed: float = 0.0  # [m/s] climb speed to the apogee waypoint (flight profile)
+    apogee_altitude: float = 0.0  # [m] apogee waypoint altitude above the position reference
+    hover_hold_s: float = 0.0  # [s] profile 0 hover test hold time
+    p1_hold_1_s: float = 0.0  # [s] profile 1 first hold (1 m)
+    p1_hold_2_s: float = 0.0  # [s] profile 1 hold at 2 m x
+    p1_hold_3_s: float = 0.0  # [s] profile 1 hold at 2 m x and 2 m y
+
+    def encode(self) -> bytes:
+        """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
+        b = bytearray(24)
+        _rt.put_f32(b, 0, self.ascent_speed)
+        _rt.put_f32(b, 4, self.apogee_altitude)
+        _rt.put_f32(b, 8, self.hover_hold_s)
+        _rt.put_f32(b, 12, self.p1_hold_1_s)
+        _rt.put_f32(b, 16, self.p1_hold_2_s)
+        _rt.put_f32(b, 20, self.p1_hold_3_s)
+        return bytes(b)
+
+    @classmethod
+    def decode(cls, data) -> "MissionParams":
+        """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
+        data = bytes(data)
+        if len(data) < cls.MIN_SIZE:
+            raise ValueError('MISSION_PARAMS: payload too short (%d < 24)' % len(data))
+        t = cls()
+        t.ascent_speed = _rt.get(data, '<f', 0)
+        t.apogee_altitude = _rt.get(data, '<f', 4)
+        t.hover_hold_s = _rt.get(data, '<f', 8)
+        t.p1_hold_1_s = _rt.get(data, '<f', 12)
+        t.p1_hold_2_s = _rt.get(data, '<f', 16)
+        t.p1_hold_3_s = _rt.get(data, '<f', 20)
         return t
 
 
