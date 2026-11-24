@@ -1314,16 +1314,24 @@
     "hover_hold_s": 30.0,
     "p1_hold_1_s": 10.0,
     "p1_hold_2_s": null,
-    "p1_hold_3_s": 15.0
+    "p1_hold_3_s": 15.0,
+    "ascent_accel": 3.0,
+    "ascent_decel": 2.0,
+    "apogee_x": 25.5,
+    "apogee_y": -40.0
    },
-   "hex": "000090400000f0420000f041000020410000c07f00007041",
+   "hex": "000090400000f0420000f041000020410000c07f0000704100004040000000400000cc41000020c2",
    "decoded": {
     "ascent_speed": 4.5,
     "apogee_altitude": 120.0,
     "hover_hold_s": 30.0,
     "p1_hold_1_s": 10.0,
     "p1_hold_2_s": null,
-    "p1_hold_3_s": 15.0
+    "p1_hold_3_s": 15.0,
+    "ascent_accel": 3.0,
+    "ascent_decel": 2.0,
+    "apogee_x": 25.5,
+    "apogee_y": -40.0
    }
   },
   {
@@ -3322,6 +3330,23 @@
     ],
     "flip_start_altitude": null,
     "stop_altitude": null
+   }
+  },
+  {
+   "name": "mission_params_older_sender_24b",
+   "packet": "MISSION_PARAMS",
+   "hex": "000090400000f0420000f041000020410000c07f00007041",
+   "decoded": {
+    "ascent_speed": 4.5,
+    "apogee_altitude": 120.0,
+    "hover_hold_s": 30.0,
+    "p1_hold_1_s": 10.0,
+    "p1_hold_2_s": null,
+    "p1_hold_3_s": 15.0,
+    "ascent_accel": null,
+    "ascent_decel": null,
+    "apogee_x": null,
+    "apogee_y": null
    }
   },
   {

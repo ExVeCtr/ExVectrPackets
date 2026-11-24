@@ -1168,7 +1168,7 @@ class Calibration:
 
 @dataclasses.dataclass
 class MissionParams:
-    """Mission parameters the vehicle currently uses (readback of REQUEST action SET_MISSION_PARAM 24; the stop altitude is in MISSION.stop_altitude and not repeated). Plain state packet, vehicle to ground station: USB at 1 Hz, radio at 0.5 Hz (every 2 s; the integer rate_air cannot express it, so it is not set and the air budget test does not count it: 31 B frame * 0.5 = 15.5 B/s, air set 2979 -> about 2994.5 B/s, still < 3000). NaN = unknown. Defaults at boot (not stored): ascent_speed 7 m/s, apogee_altitude 120 m, hover_hold_s 30 s, p1_hold_1_s 10 s, p1_hold_2_s 15 s, p1_hold_3_s 15 s."""
+    """Mission parameters the vehicle currently uses (readback of REQUEST action SET_MISSION_PARAM 24; the stop altitude is in MISSION.stop_altitude and not repeated). Plain state packet, vehicle to ground station: USB at 1 Hz, radio every 5 s (0.2 Hz; the integer rate_air cannot express it, so it is not set and the air budget test does not count it: 47 B frame * 0.2 = 9.4 B/s, air set 2979 -> about 2988.4 B/s, still < 3000). NaN = unknown. Defaults at boot (not stored): ascent_speed 7 m/s, apogee_altitude 120 m, hover_hold_s 30 s, p1_hold_1_s 10 s, p1_hold_2_s 15 s, p1_hold_3_s 15 s, ascent_accel 3 m/s^2, ascent_decel 2 m/s^2, apogee_x 0 m, apogee_y 0 m."""
     PORT: ClassVar[Optional[int]] = 0x26
     IS_HEARTBEAT: ClassVar[bool] = False
     QOS: ClassVar[int] = 3  # telemetry
@@ -1176,7 +1176,7 @@ class MissionParams:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 0
     USB_RATE_HZ: ClassVar[int] = 1
-    MAX_SIZE: ClassVar[int] = 24
+    MAX_SIZE: ClassVar[int] = 40
     MIN_SIZE: ClassVar[int] = 24
     ascent_speed: float = 0.0  # [m/s] climb speed to the apogee waypoint (flight profile)
     apogee_altitude: float = 0.0  # [m] apogee waypoint altitude above the position reference
@@ -1184,16 +1184,24 @@ class MissionParams:
     p1_hold_1_s: float = 0.0  # [s] profile 1 first hold (1 m)
     p1_hold_2_s: float = 0.0  # [s] profile 1 hold at 2 m x
     p1_hold_3_s: float = 0.0  # [s] profile 1 hold at 2 m x and 2 m y
+    ascent_accel: float = 0.0  # [m/s^2] waypoint acceleration toward the apogee waypoint (default 3). Missing (older sender) decodes as NaN
+    ascent_decel: float = 0.0  # [m/s^2] waypoint deceleration at the apogee waypoint (default 2). Missing decodes as NaN
+    apogee_x: float = 0.0  # [m] apogee position X, m north of the position reference (NWU +X; default 0). Missing decodes as NaN
+    apogee_y: float = 0.0  # [m] apogee position Y, m WEST of the position reference (NWU +Y = west; default 0). Missing decodes as NaN
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(24)
+        b = bytearray(40)
         _rt.put_f32(b, 0, self.ascent_speed)
         _rt.put_f32(b, 4, self.apogee_altitude)
         _rt.put_f32(b, 8, self.hover_hold_s)
         _rt.put_f32(b, 12, self.p1_hold_1_s)
         _rt.put_f32(b, 16, self.p1_hold_2_s)
         _rt.put_f32(b, 20, self.p1_hold_3_s)
+        _rt.put_f32(b, 24, self.ascent_accel)
+        _rt.put_f32(b, 28, self.ascent_decel)
+        _rt.put_f32(b, 32, self.apogee_x)
+        _rt.put_f32(b, 36, self.apogee_y)
         return bytes(b)
 
     @classmethod
@@ -1209,6 +1217,22 @@ class MissionParams:
         t.p1_hold_1_s = _rt.get(data, '<f', 12)
         t.p1_hold_2_s = _rt.get(data, '<f', 16)
         t.p1_hold_3_s = _rt.get(data, '<f', 20)
+        if len(data) >= 28:
+            t.ascent_accel = _rt.get(data, '<f', 24)
+        else:
+            t.ascent_accel = float('nan')
+        if len(data) >= 32:
+            t.ascent_decel = _rt.get(data, '<f', 28)
+        else:
+            t.ascent_decel = float('nan')
+        if len(data) >= 36:
+            t.apogee_x = _rt.get(data, '<f', 32)
+        else:
+            t.apogee_x = float('nan')
+        if len(data) >= 40:
+            t.apogee_y = _rt.get(data, '<f', 36)
+        else:
+            t.apogee_y = float('nan')
         return t
 
 

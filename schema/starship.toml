@@ -54,7 +54,12 @@ doc = "Starship vehicle telemetry."
 #   4 P1_HOLD_1_S      s,   10,  0..600    (profile 1 first hold, at 1 m)
 #   5 P1_HOLD_2_S      s,   15,  0..600    (profile 1 hold at 2 m x)
 #   6 P1_HOLD_3_S      s,   15,  0..600    (profile 1 hold at 2 m x and 2 m y)
-#   7..31 reserved (REJECTED_INVALID detail 1). The stop altitude is action 13 (not a mission parameter id).
+#   7 ASCENT_ACCEL    m/s^2, 3,  0.2..20  (waypoint acceleration toward the apogee waypoint)
+#   8 ASCENT_DECEL    m/s^2, 2,  0.2..20  (waypoint deceleration at the apogee waypoint)
+#   9 APOGEE_X        m,   0,   -2000..2000 (apogee position, m north of the position reference, NWU +X)
+#   10 APOGEE_Y       m,   0,   -2000..2000 (apogee position, m WEST of the position reference, NWU +Y = west)
+#   (id 2 APOGEE_ALTITUDE is the apogee Z, up.)
+#   11..31 reserved (REJECTED_INVALID detail 1). The stop altitude is action 13 (not a mission parameter id).
 # Detail codes: REJECTED_STATE 2: 1 not on the ground, 2 zeroing refusal, 3 session, 4 no home yet, 5 not in simulation,
 # 6 calibration refused. REJECTED_INVALID 3: 1 bad argument, 2 wrong target, 3 unknown or retired action.
 # Vehicle-directed (target 1) refusal codes in REQUEST_ACK (every copy is acked): REJECTED_STATE detail 1 = not on the ground
@@ -392,7 +397,7 @@ port = 0x26
 qos = "telemetry"
 latest = true
 rate_usb = 1
-doc = "Mission parameters the vehicle currently uses (readback of REQUEST action SET_MISSION_PARAM 24; the stop altitude is in MISSION.stop_altitude and not repeated). Plain state packet, vehicle to ground station: USB at 1 Hz, radio at 0.5 Hz (every 2 s; the integer rate_air cannot express it, so it is not set and the air budget test does not count it: 31 B frame * 0.5 = 15.5 B/s, air set 2979 -> about 2994.5 B/s, still < 3000). NaN = unknown. Defaults at boot (not stored): ascent_speed 7 m/s, apogee_altitude 120 m, hover_hold_s 30 s, p1_hold_1_s 10 s, p1_hold_2_s 15 s, p1_hold_3_s 15 s."
+doc = "Mission parameters the vehicle currently uses (readback of REQUEST action SET_MISSION_PARAM 24; the stop altitude is in MISSION.stop_altitude and not repeated). Plain state packet, vehicle to ground station: USB at 1 Hz, radio every 5 s (0.2 Hz; the integer rate_air cannot express it, so it is not set and the air budget test does not count it: 47 B frame * 0.2 = 9.4 B/s, air set 2979 -> about 2988.4 B/s, still < 3000). NaN = unknown. Defaults at boot (not stored): ascent_speed 7 m/s, apogee_altitude 120 m, hover_hold_s 30 s, p1_hold_1_s 10 s, p1_hold_2_s 15 s, p1_hold_3_s 15 s, ascent_accel 3 m/s^2, ascent_decel 2 m/s^2, apogee_x 0 m, apogee_y 0 m."
 fields = [
   { name = "ascent_speed",     type = "f32", unit = "m/s", doc = "climb speed to the apogee waypoint (flight profile)" },
   { name = "apogee_altitude",  type = "f32", unit = "m", doc = "apogee waypoint altitude above the position reference" },
@@ -400,6 +405,10 @@ fields = [
   { name = "p1_hold_1_s",      type = "f32", unit = "s", doc = "profile 1 first hold (1 m)" },
   { name = "p1_hold_2_s",      type = "f32", unit = "s", doc = "profile 1 hold at 2 m x" },
   { name = "p1_hold_3_s",      type = "f32", unit = "s", doc = "profile 1 hold at 2 m x and 2 m y" },
+  { name = "ascent_accel",     type = "f32", optional = true, unit = "m/s^2", doc = "waypoint acceleration toward the apogee waypoint (default 3). Missing (older sender) decodes as NaN" },
+  { name = "ascent_decel",     type = "f32", optional = true, unit = "m/s^2", doc = "waypoint deceleration at the apogee waypoint (default 2). Missing decodes as NaN" },
+  { name = "apogee_x",         type = "f32", optional = true, unit = "m", doc = "apogee position X, m north of the position reference (NWU +X; default 0). Missing decodes as NaN" },
+  { name = "apogee_y",         type = "f32", optional = true, unit = "m", doc = "apogee position Y, m WEST of the position reference (NWU +Y = west; default 0). Missing decodes as NaN" },
 ]
 
 # ---------------------------------------------------------------- request objects

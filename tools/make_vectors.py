@@ -266,8 +266,11 @@ case("calibration", "CALIBRATION", cv,
       "gyro_bias_est": [struct.unpack("<f", struct.pack("<f", 0.001))[0], NAN,
                         struct.unpack("<f", struct.pack("<f", -0.002))[0]]})
 mpv = {"ascent_speed": 4.5, "apogee_altitude": 120.0, "hover_hold_s": 30.0, "p1_hold_1_s": 10.0, "p1_hold_2_s": NAN,
-       "p1_hold_3_s": 15.0}
-case("mission_params", "MISSION_PARAMS", mpv, P("6f", 4.5, 120.0, 30.0, 10.0, float("nan"), 15.0), mpv)
+       "p1_hold_3_s": 15.0, "ascent_accel": 3.0, "ascent_decel": 2.0, "apogee_x": 25.5, "apogee_y": -40.0}
+case("mission_params", "MISSION_PARAMS", mpv, P("10f", 4.5, 120.0, 30.0, 10.0, float("nan"), 15.0, 3.0, 2.0, 25.5, -40.0), mpv)
+mpv_old = {**mpv, "ascent_accel": NAN, "ascent_decel": NAN, "apogee_x": NAN, "apogee_y": NAN}
+decode_only.append({"name": "mission_params_older_sender_24b", "packet": "MISSION_PARAMS",
+                    "hex": hexs(P("6f", 4.5, 120.0, 30.0, 10.0, float("nan"), 15.0)), "decoded": mpv_old})
 tavg = [100, 200, 300, 400, 500, 600, 700, 65535]
 tmax = [150, 250, 350, 450, 550, 650, 750, 65534]
 tv = {"t_us": 11, "count": 7, "avg": [r * 1e-6 for r in tavg[:7]] + [NAN], "max": [r * 1e-6 for r in tmax]}

@@ -1314,7 +1314,7 @@ struct Calibration {
     }
 };
 
-/// Mission parameters the vehicle currently uses (readback of REQUEST action SET_MISSION_PARAM 24; the stop altitude is in MISSION.stop_altitude and not repeated). Plain state packet, vehicle to ground station: USB at 1 Hz, radio at 0.5 Hz (every 2 s; the integer rate_air cannot express it, so it is not set and the air budget test does not count it: 31 B frame * 0.5 = 15.5 B/s, air set 2979 -> about 2994.5 B/s, still < 3000). NaN = unknown. Defaults at boot (not stored): ascent_speed 7 m/s, apogee_altitude 120 m, hover_hold_s 30 s, p1_hold_1_s 10 s, p1_hold_2_s 15 s, p1_hold_3_s 15 s.
+/// Mission parameters the vehicle currently uses (readback of REQUEST action SET_MISSION_PARAM 24; the stop altitude is in MISSION.stop_altitude and not repeated). Plain state packet, vehicle to ground station: USB at 1 Hz, radio every 5 s (0.2 Hz; the integer rate_air cannot express it, so it is not set and the air budget test does not count it: 47 B frame * 0.2 = 9.4 B/s, air set 2979 -> about 2988.4 B/s, still < 3000). NaN = unknown. Defaults at boot (not stored): ascent_speed 7 m/s, apogee_altitude 120 m, hover_hold_s 30 s, p1_hold_1_s 10 s, p1_hold_2_s 15 s, p1_hold_3_s 15 s, ascent_accel 3 m/s^2, ascent_decel 2 m/s^2, apogee_x 0 m, apogee_y 0 m.
 struct MissionParams {
     static constexpr uint8_t kPort = 0x26;
     static constexpr bool kIsHeartbeat = false;
@@ -1323,7 +1323,7 @@ struct MissionParams {
     static constexpr bool kAirEligible = true;
     static constexpr uint16_t kAirRateHz = 0;
     static constexpr uint16_t kUsbRateHz = 1;
-    static constexpr size_t kMaxSize = 24;
+    static constexpr size_t kMaxSize = 40;
     static constexpr size_t kMinSize = 24;
 
     float ascent_speed = {}; // [m/s] climb speed to the apogee waypoint (flight profile)
@@ -1332,10 +1332,14 @@ struct MissionParams {
     float p1_hold_1_s = {}; // [s] profile 1 first hold (1 m)
     float p1_hold_2_s = {}; // [s] profile 1 hold at 2 m x
     float p1_hold_3_s = {}; // [s] profile 1 hold at 2 m x and 2 m y
+    float ascent_accel = {}; // [m/s^2] waypoint acceleration toward the apogee waypoint (default 3). Missing (older sender) decodes as NaN
+    float ascent_decel = {}; // [m/s^2] waypoint deceleration at the apogee waypoint (default 2). Missing decodes as NaN
+    float apogee_x = {}; // [m] apogee position X, m north of the position reference (NWU +X; default 0). Missing decodes as NaN
+    float apogee_y = {}; // [m] apogee position Y, m WEST of the position reference (NWU +Y = west; default 0). Missing decodes as NaN
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 24;
+        constexpr size_t total = 40;
         if (out == nullptr || cap < total) return 0;
         codec::put_f32(out + 0, ascent_speed);
         codec::put_f32(out + 4, apogee_altitude);
@@ -1343,6 +1347,10 @@ struct MissionParams {
         codec::put_f32(out + 12, p1_hold_1_s);
         codec::put_f32(out + 16, p1_hold_2_s);
         codec::put_f32(out + 20, p1_hold_3_s);
+        codec::put_f32(out + 24, ascent_accel);
+        codec::put_f32(out + 28, ascent_decel);
+        codec::put_f32(out + 32, apogee_x);
+        codec::put_f32(out + 36, apogee_y);
         return total;
     }
 
@@ -1357,6 +1365,26 @@ struct MissionParams {
         t.p1_hold_1_s = codec::get_f32(in + 12);
         t.p1_hold_2_s = codec::get_f32(in + 16);
         t.p1_hold_3_s = codec::get_f32(in + 20);
+        if (len >= 28) {
+            t.ascent_accel = codec::get_f32(in + 24);
+        } else {
+            t.ascent_accel = std::numeric_limits<float>::quiet_NaN();
+        }
+        if (len >= 32) {
+            t.ascent_decel = codec::get_f32(in + 28);
+        } else {
+            t.ascent_decel = std::numeric_limits<float>::quiet_NaN();
+        }
+        if (len >= 36) {
+            t.apogee_x = codec::get_f32(in + 32);
+        } else {
+            t.apogee_x = std::numeric_limits<float>::quiet_NaN();
+        }
+        if (len >= 40) {
+            t.apogee_y = codec::get_f32(in + 36);
+        } else {
+            t.apogee_y = std::numeric_limits<float>::quiet_NaN();
+        }
         *this = t;
         return true;
     }
@@ -1370,6 +1398,10 @@ struct MissionParams {
         v.scalar("p1_hold_1_s", p1_hold_1_s);
         v.scalar("p1_hold_2_s", p1_hold_2_s);
         v.scalar("p1_hold_3_s", p1_hold_3_s);
+        v.scalar("ascent_accel", ascent_accel);
+        v.scalar("ascent_decel", ascent_decel);
+        v.scalar("apogee_x", apogee_x);
+        v.scalar("apogee_y", apogee_y);
         (void)v;
     }
 };
