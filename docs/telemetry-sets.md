@@ -7,7 +7,7 @@ Design 3.5.6 as adapted by the user decisions in the Revision 1 box of `docs/net
 | Packet | Port | Bytes | Air Hz | B/s incl. 7 B overhead |
 |---|---|---|---|---|
 | `VEHICLE_STATUS` (slow class: mode, mission, interlock state, motor gate, control source, failure bits, sensors, last request, command age, home epoch, calibration state, T9b control flags, go refusal, degraded bits, mission profile, command rejects, cmd session) | 0x20 | 38 | 5 | 225 |
-| `AIR_POSE` (q i16, position i32 at 1 mm, velocity i16 at 0.01 m/s) | 0x21 | 30 | 25 | 925 |
+| `AIR_POSE` (q i16, position i32 at 1 mm, velocity i16 at 0.01 m/s, ground distance u16 at 1 mm) | 0x21 | 32 | 25 | 975 |
 | `AIR_ACTUATORS` (two actuator samples per packet, 20 ms apart: TVC deflection, roll torque, thrust, flaps; i16/u16 fixed) | 0x22 | 38 | 25 | 1125 |
 | `AIR_MISSION` (mission time, mode, phase, index, waypoint, position/velocity setpoint, attitude setpoint q, fixed) | 0x23 | 38 | 5 | 225 |
 | `AIR_GNSS` (lat/lon i32 at 1e-7 deg, altitude i32 mm, NWU velocity i16 x3 at 0.01 m/s) | 0x24 | 22 | 10 | 290 |
@@ -15,9 +15,9 @@ Design 3.5.6 as adapted by the user decisions in the Revision 1 box of `docs/net
 | `HANDSET_TELEM` | 0x03 | 34 | 2 | 82 |
 | `LINK_STATS` (from node 3) | 0x01 | 19 | 2 | 52 |
 | heartbeats (nodes 1 and 3) | - | 11 | 1 | 36 |
-| **Total** | | | | **about 2.96 kB/s** (air downlink entry capacity: 6.15 kB/s, 48 %; workspace `tools/network_budget.py` counts LINK_STATS at 5 Hz: about 3.01 kB/s, 49 %; it was 2.45 kB/s, 40 %, with `AIR_POSE` at 10 Hz, and 2.14 kB/s, 35 %, before `AIR_GNSS`) |
+| **Total** | | | | **about 3.01 kB/s** (air downlink entry capacity: 6.15 kB/s, 49 %; workspace `tools/network_budget.py` counts LINK_STATS at 5 Hz: about 3.01 kB/s, 49 %; it was 2.45 kB/s, 40 %, with `AIR_POSE` at 10 Hz, and 2.14 kB/s, 35 %, before `AIR_GNSS`) |
 
-`GNSS`, `ACTUATORS`, `MISSION` and the raw/debug packets are not on the radio; `AIR_ACTUATORS`, `AIR_MISSION` and `AIR_GNSS` (+ `AIR_GNSS_INFO`) are their air versions. `HANDSET_TELEM` already carries position, speed and attitude for the Pocket display. A test checks that the air set stays below 3000 B/s (49 % of the air downlink; the limit was 1.2 kB/s before `AIR_ACTUATORS` and `AIR_MISSION`, 2150 B/s before `AIR_GNSS`, 2500 B/s before `AIR_POSE` went to 25 Hz; the set computes to 2979 B/s, so about 20 B/s of headroom is left on purpose, any new air stream must raise the limit deliberately).
+`GNSS`, `ACTUATORS`, `MISSION` and the raw/debug packets are not on the radio; `AIR_ACTUATORS`, `AIR_MISSION` and `AIR_GNSS` (+ `AIR_GNSS_INFO`) are their air versions. `HANDSET_TELEM` already carries position, speed and attitude for the Pocket display. A test checks that the air set stays below 3100 B/s (50 % of the air downlink; 3000 B/s until 2026-11-26; the limit was 1.2 kB/s before `AIR_ACTUATORS` and `AIR_MISSION`, 2150 B/s before `AIR_GNSS`, 2500 B/s before `AIR_POSE` went to 25 Hz; the set computes to 2979 B/s, so about 20 B/s of headroom is left on purpose, any new air stream must raise the limit deliberately).
 
 `AIR_GNSS` (2026-11-21, H1): GNSS position and the full NWU velocity at 10 Hz for verifying the barometric/estimated altitude during descent; fix type, satellites and h/v accuracy are in `AIR_GNSS_INFO` at 1 Hz (the split costs 307 B/s against 370 B/s for one 30 B packet at 10 Hz). Altitude is as `GNSS.altitude` (the driver's ellipsoid height; the datum does not matter for pad-relative use). Sentinel values decode as NaN. `HOME_POSITION` (0x50) is not a stream: it is the response object of a request channel (workspace `docs/reliable-transport-design.md` 8.1), see `docs/packet-reference.md`; `VEHICLE_STATUS.home_epoch` tells the GS when to request it again.
 
@@ -31,8 +31,8 @@ All of the above that have a USB rate, plus ports 0x80 and up (never forwarded t
 
 | Class | Packet | Port | Bytes | USB Hz |
 |---|---|---|---|---|
-| fast | `POSE` (omega, q, velocity, position, f32) | 0x80 | 56 | 100 |
-| medium | `ACTUATORS` (flaps `[TL,TR,BL,BR]` rad, 0 = extended, increasing = folded toward the back; TVC; thrust; ground distance, roll torque) | 0x81 | 40 | 50 |
+| fast | `POSE` (omega, q, velocity, position, ground distance, f32) | 0x80 | 60 | 100 |
+| medium | `ACTUATORS` (flaps `[TL,TR,BL,BR]` rad, 0 = extended, increasing = folded toward the back; TVC; thrust; roll torque) | 0x81 | 36 | 50 |
 | slow | `VEHICLE_STATUS` | 0x20 | 38 | 20 |
 | slow | `MISSION` (position/velocity setpoint, mission time, index, phase, attitude setpoint q, mission mode, waypoint) | 0x82 | 52 | 20 |
 | slow | `GNSS` (lat/lon radians, f64) | 0x83 | 50 | 10 |
@@ -58,3 +58,5 @@ GS control (2026-11-23, hash `0x65E4E6E3` -> `0xF1941A87`): `VEHICLE_STATUS` +2 
 Air uplink (Router to ship node, not part of the downlink budget test): `CMD_STATE` is 14 B + 7 B frame/air header = 21 B, sent at 25 Hz = **525 B/s** (latest-wins in the Router, so the immediate on-change frames cost no extra air). Other uplink traffic stays about 86 B/s (node 2 `LINK_STATS`, `LINK_CONFIG`, rare `REQUEST`, now 16 B). Total uplink about 611 B/s = 9.9 % of the 6.15 kB/s entry capacity (it was 1025 B/s for the Pocket `RC_STATE`, 18.1 %, which no longer travels on air). `CMD_STATE` has no `rate_air`/`rate_usb` in the schema because those fields describe the downlink.
 
 Flip-start (2026-11-23, hash `0xF1941A87` -> `0x0E1E8CAB`): `MISSION` +8 B (52 -> 60, f32 `flip_start_altitude` and `stop_altitude`), `AIR_MISSION` +4 B (38 -> 42, i16 at 0.1 m each, -32768 = NaN), +20 B/s on air (air downlink 2959 -> 2979 B/s, still below the 3000 B/s test), +160 B/s on USB at 20 Hz. See `versioning.md`.
+
+Ground distance moved (owner decision 2026-11-26, hash `0xC2061E5D` -> `0x93EF9C5F`): the downward lidar distance is a sensor, not an actuator. `ACTUATORS.ground_distance` is removed (40 -> 36 B, -4 B x 50 Hz = -200 B/s on USB). `POSE` gains optional `ground_distance` (f32 m, 56 -> 60 B, +4 B x 100 Hz on USB) and `AIR_POSE` gains optional `ground_distance` (u16 at 0.001 m, 0..65.534 m, wire 65535 = NaN; 30 -> 32 B, +2 B x 25 Hz = +50 B/s on air: air set 2979 -> 3029 B/s as the generated set computes it, 49.3 % of 6150 B/s; the budget test limit was raised from 3000 to 3100 B/s). NaN = unavailable (the vehicle reports only 0.4 to 1.5 m); a missing field (older sender) also decodes as NaN. Vehicle and ground station must take this version together (ACTUATORS layout break, see `versioning.md`).

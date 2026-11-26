@@ -364,8 +364,8 @@ static void test_fixed_rules_direct() {
 }
 
 static void test_air_pose_position_mm() {
-    // pos is i32 with 1 mm resolution (was i16, 0.1 m); 30 byte payload
-    TEST_ASSERT_EQUAL(30, AirPose::kMaxSize);
+    // pos is i32 with 1 mm resolution (was i16, 0.1 m); 32 byte payload (ground_distance u16 appended 2026-11-26)
+    TEST_ASSERT_EQUAL(32, AirPose::kMaxSize);
     AirPose ap;
     ap.pos[0] = 12.345;
     ap.pos[1] = -4000.0; // beyond the old i16 0.1 m range (+-3276.6 m)
@@ -416,14 +416,14 @@ static void test_metadata_constants() {
     TEST_ASSERT_EQUAL_UINT16(10, Gnss::kUsbRateHz);
     TEST_ASSERT_EQUAL(0x50, HomePosition::kPort);
     TEST_ASSERT_EQUAL(25, HomePosition::kMaxSize);
-    // every air-eligible packet fits the radio budget: < 3000 B/s including 7 bytes overhead, i.e. below 49 % of the
+    // every air-eligible packet fits the radio budget: < 3100 B/s including 7 bytes overhead, i.e. below 50.4 % of the
     // 6150 B/s air downlink entry capacity (was 1.2 kB/s, design 3.5.6, before AIR_ACTUATORS and AIR_MISSION; 2150
     // before AIR_GNSS (290 B/s) and AIR_GNSS_INFO (17 B/s); 2500 before AIR_POSE went from 10 to 25 Hz,
-    // +555 B/s, 2026-11-22; the set is 2979 B/s now)
+    // +555 B/s, 2026-11-22; 2979 B/s before AIR_POSE ground_distance, +50 B/s on 2026-11-26: the set is 3029 B/s now, limit raised to 3100)
     unsigned total = (VehicleStatus::kMaxSize + 7) * VehicleStatus::kAirRateHz + (AirPose::kMaxSize + 7) * AirPose::kAirRateHz +
                      (AirActuators::kMaxSize + 7) * AirActuators::kAirRateHz + (AirMission::kMaxSize + 7) * AirMission::kAirRateHz + (AirGnss::kMaxSize + 7) * AirGnss::kAirRateHz + (AirGnssInfo::kMaxSize + 7) * AirGnssInfo::kAirRateHz +
                      (HandsetTelem::kMaxSize + 7) * HandsetTelem::kAirRateHz + (LinkStats::kMaxSize + 7) * LinkStats::kAirRateHz;
-    TEST_ASSERT_TRUE(total < 3000);
+    TEST_ASSERT_TRUE(total < 3100);
 }
 
 static void test_log_text_helper() {

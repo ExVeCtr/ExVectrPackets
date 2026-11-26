@@ -350,22 +350,24 @@ struct AirPose {
     static constexpr bool kAirEligible = true;
     static constexpr uint16_t kAirRateHz = 25;
     static constexpr uint16_t kUsbRateHz = 0;
-    static constexpr size_t kMaxSize = 30;
+    static constexpr size_t kMaxSize = 32;
     static constexpr size_t kMinSize = 30;
 
     uint32_t t_us = {}; // [us] 
     float q[4] = {}; // [w,x,y,z] body -> world
     float pos[3] = {}; // [m] NWU, 1 mm resolution, +-2147483.6 m
     float vel[3] = {}; // [m/s] NWU, +-327.66 m/s
+    float ground_distance = {}; // [m] downward lidar (VL53L0X) distance to the ground in metres, NaN if unavailable (the vehicle only reports a valid reading in its useful range 0.4 to 1.5 m). 0..65.534 m at 1 mm, wire 65535 = unavailable (NaN). Missing (older sender) decodes as NaN
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 30;
+        constexpr size_t total = 32;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         for (size_t i = 0; i < 4; ++i) codec::put_i16(out + 4 + i * 2, static_cast<int16_t>(codec::fixedEncode(q[i], 3.051850947599719e-05, -32767LL, 32767LL, -32768LL)));
         for (size_t i = 0; i < 3; ++i) codec::put_i32(out + 12 + i * 4, static_cast<int32_t>(codec::fixedEncode(pos[i], 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
         for (size_t i = 0; i < 3; ++i) codec::put_i16(out + 24 + i * 2, static_cast<int16_t>(codec::fixedEncode(vel[i], 0.01, -32767LL, 32767LL, -32768LL)));
+        codec::put_u16(out + 30, static_cast<uint16_t>(codec::fixedEncode(ground_distance, 0.001, 0LL, 65534LL, 65535LL)));
         return total;
     }
 
@@ -378,6 +380,11 @@ struct AirPose {
         for (size_t i = 0; i < 4; ++i) t.q[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 4 + i * 2), 3.051850947599719e-05, -32768LL));
         for (size_t i = 0; i < 3; ++i) t.pos[i] = static_cast<float>(codec::fixedDecode(codec::get_i32(in + 12 + i * 4), 0.001, -2147483648LL));
         for (size_t i = 0; i < 3; ++i) t.vel[i] = static_cast<float>(codec::fixedDecode(codec::get_i16(in + 24 + i * 2), 0.01, -32768LL));
+        if (len >= 32) {
+            t.ground_distance = static_cast<float>(codec::fixedDecode(codec::get_u16(in + 30), 0.001, 65535LL));
+        } else {
+            t.ground_distance = std::numeric_limits<float>::quiet_NaN();
+        }
         *this = t;
         return true;
     }
@@ -389,6 +396,7 @@ struct AirPose {
         v.array("q", q);
         v.array("pos", pos);
         v.array("vel", vel);
+        v.scalar("ground_distance", ground_distance);
         (void)v;
     }
 };
@@ -666,7 +674,7 @@ struct Pose {
     static constexpr bool kAirEligible = false;
     static constexpr uint16_t kAirRateHz = 0;
     static constexpr uint16_t kUsbRateHz = 100;
-    static constexpr size_t kMaxSize = 56;
+    static constexpr size_t kMaxSize = 60;
     static constexpr size_t kMinSize = 56;
 
     uint32_t t_us = {}; // [us] 
@@ -674,16 +682,18 @@ struct Pose {
     float q[4] = {}; // [w,x,y,z] body -> world
     float vel[3] = {}; // [m/s] NWU
     float pos[3] = {}; // [m] NWU from the reset reference
+    float ground_distance = {}; // [m] downward lidar (VL53L0X) distance to the ground in metres, NaN if unavailable (the vehicle only reports a valid reading in its useful range 0.4 to 1.5 m). Missing (older sender) decodes as NaN
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 56;
+        constexpr size_t total = 60;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         for (size_t i = 0; i < 3; ++i) codec::put_f32(out + 4 + i * 4, omega[i]);
         for (size_t i = 0; i < 4; ++i) codec::put_f32(out + 16 + i * 4, q[i]);
         for (size_t i = 0; i < 3; ++i) codec::put_f32(out + 32 + i * 4, vel[i]);
         for (size_t i = 0; i < 3; ++i) codec::put_f32(out + 44 + i * 4, pos[i]);
+        codec::put_f32(out + 56, ground_distance);
         return total;
     }
 
@@ -697,6 +707,11 @@ struct Pose {
         for (size_t i = 0; i < 4; ++i) t.q[i] = codec::get_f32(in + 16 + i * 4);
         for (size_t i = 0; i < 3; ++i) t.vel[i] = codec::get_f32(in + 32 + i * 4);
         for (size_t i = 0; i < 3; ++i) t.pos[i] = codec::get_f32(in + 44 + i * 4);
+        if (len >= 60) {
+            t.ground_distance = codec::get_f32(in + 56);
+        } else {
+            t.ground_distance = std::numeric_limits<float>::quiet_NaN();
+        }
         *this = t;
         return true;
     }
@@ -709,6 +724,7 @@ struct Pose {
         v.array("q", q);
         v.array("vel", vel);
         v.array("pos", pos);
+        v.scalar("ground_distance", ground_distance);
         (void)v;
     }
 };
@@ -722,26 +738,24 @@ struct Actuators {
     static constexpr bool kAirEligible = false;
     static constexpr uint16_t kAirRateHz = 0;
     static constexpr uint16_t kUsbRateHz = 50;
-    static constexpr size_t kMaxSize = 40;
-    static constexpr size_t kMinSize = 36;
+    static constexpr size_t kMaxSize = 36;
+    static constexpr size_t kMinSize = 32;
 
     uint32_t t_us = {}; // [us] 
     float flaps[4] = {}; // [rad] [TL, TR, BL, BR]; 0 = extended, increasing = folded toward the back
     float tvc[2] = {}; // [rad] thrust vector deflection [x, y]
     float thrust = {}; // [N] 
-    float ground_distance = {}; // [m] NaN if unavailable
     float roll_torque = {}; // [N*m] TVC twist (roll) actuation as the roll torque about body Z the vanes produce (same meaning as AIR_ACTUATORS.roll_torque, unquantised). Missing (older sender) decodes as NaN = unknown
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 40;
+        constexpr size_t total = 36;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         for (size_t i = 0; i < 4; ++i) codec::put_f32(out + 4 + i * 4, flaps[i]);
         for (size_t i = 0; i < 2; ++i) codec::put_f32(out + 20 + i * 4, tvc[i]);
         codec::put_f32(out + 28, thrust);
-        codec::put_f32(out + 32, ground_distance);
-        codec::put_f32(out + 36, roll_torque);
+        codec::put_f32(out + 32, roll_torque);
         return total;
     }
 
@@ -754,9 +768,8 @@ struct Actuators {
         for (size_t i = 0; i < 4; ++i) t.flaps[i] = codec::get_f32(in + 4 + i * 4);
         for (size_t i = 0; i < 2; ++i) t.tvc[i] = codec::get_f32(in + 20 + i * 4);
         t.thrust = codec::get_f32(in + 28);
-        t.ground_distance = codec::get_f32(in + 32);
-        if (len >= 40) {
-            t.roll_torque = codec::get_f32(in + 36);
+        if (len >= 36) {
+            t.roll_torque = codec::get_f32(in + 32);
         } else {
             t.roll_torque = std::numeric_limits<float>::quiet_NaN();
         }
@@ -771,7 +784,6 @@ struct Actuators {
         v.array("flaps", flaps);
         v.array("tvc", tvc);
         v.scalar("thrust", thrust);
-        v.scalar("ground_distance", ground_distance);
         v.scalar("roll_torque", roll_torque);
         (void)v;
     }
