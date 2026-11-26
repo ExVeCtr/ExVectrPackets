@@ -429,7 +429,7 @@ class AirMission:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 5
     USB_RATE_HZ: ClassVar[int] = 0
-    MAX_SIZE: ClassVar[int] = 42
+    MAX_SIZE: ClassVar[int] = 46
     MIN_SIZE: ClassVar[int] = 30
     t_us: int = 0  # [us] 
     mission_time: float = 0.0  # [s] mission time as MISSION.mission_time, negative during the countdown
@@ -442,10 +442,11 @@ class AirMission:
     setpoint_q: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as AIR_POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint
     flip_start_altitude: float = 0.0  # [m] estimated altitude above the position reference (NWU up) at which the upright (flip) manoeuvre will begin, = the vehicle's getStopAltitude() = stopDist(Vz) + stop_altitude, re-estimated continuously. Sent only during the bellyflop freefall phase, otherwise NaN (wire sentinel -32768). 0.1 m steps, +-3276.7 m. Missing (older sender) = NaN
     stop_altitude: float = 0.0  # [m] current value of the stop altitude parameter (altitude above the position reference where the vehicle ends up stopped, default 20 m, settable 5..60 m with the SetStopAltitude telecommand while on the ground). Always sent, the echo that confirms a setting. NaN (wire sentinel -32768) = unknown / missing (older sender)
+    mission_elapsed: float = 0.0  # [s] seconds since the mission's T0 (mission begin) as the vehicle counts them: negative (T-minus) during the countdown, 0 at T0, continuous across all mission steps (unlike mission_time, which restarts for each step), reset by the next mission begin; the final value is held after the mission chain ends; NaN when no mission has been begun since boot or after a reset to Idle. Missing (older sender) decodes as NaN
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(42)
+        b = bytearray(46)
         _rt.put(b, '<I', 0, self.t_us)
         _rt.put_fixed(b, '<i', 4, self.mission_time, 0.001, -2147483647, 2147483647, -2147483648)
         _rt.put(b, '<B', 8, self.mission_mode)
@@ -466,6 +467,7 @@ class AirMission:
             _rt.put_fixed(b, '<h', 30 + i * 2, v, 3.051850947599719e-05, -32767, 32767, -32768)
         _rt.put_fixed(b, '<h', 38, self.flip_start_altitude, 0.1, -32767, 32767, -32768)
         _rt.put_fixed(b, '<h', 40, self.stop_altitude, 0.1, -32767, 32767, -32768)
+        _rt.put_fixed(b, '<i', 42, self.mission_elapsed, 0.001, -2147483647, 2147483647, -2147483648)
         return bytes(b)
 
     @classmethod
@@ -495,6 +497,10 @@ class AirMission:
             t.stop_altitude = _rt.get_fixed(data, '<h', 40, 0.1, -32768)
         else:
             t.stop_altitude = float('nan')
+        if len(data) >= 46:
+            t.mission_elapsed = _rt.get_fixed(data, '<i', 42, 0.001, -2147483648)
+        else:
+            t.mission_elapsed = float('nan')
         return t
 
 
@@ -710,7 +716,7 @@ class Mission:
     AIR_ELIGIBLE: ClassVar[bool] = False
     AIR_RATE_HZ: ClassVar[int] = 0
     USB_RATE_HZ: ClassVar[int] = 20
-    MAX_SIZE: ClassVar[int] = 60
+    MAX_SIZE: ClassVar[int] = 64
     MIN_SIZE: ClassVar[int] = 34
     t_us: int = 0  # [us] 
     setpoint_pos: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m] 
@@ -723,10 +729,11 @@ class Mission:
     waypoint: int = 0  # current waypoint index, 255 = the active mission is not the waypoint mission (as AIR_MISSION.waypoint). Missing (older sender) decodes as 0, so use mission_mode/VEHICLE_STATUS to know the sender is new
     flip_start_altitude: float = 0.0  # [m] estimated altitude above the position reference (NWU up) at which the upright (flip) manoeuvre will begin, = the vehicle's getStopAltitude() = stopDist(Vz) + stop_altitude, re-estimated continuously. Sent only during the bellyflop freefall phase, otherwise NaN. Missing (older sender) = NaN
     stop_altitude: float = 0.0  # [m] current value of the stop altitude parameter (altitude above the position reference where the vehicle ends up stopped, default 20 m, settable 5..60 m with the SetStopAltitude telecommand while on the ground). Always sent, the echo that confirms a setting. NaN = unknown / missing (older sender)
+    mission_elapsed: float = 0.0  # [s] seconds since the mission's T0 (mission begin) as the vehicle counts them: negative (T-minus) during the countdown, 0 at T0, continuous across all mission steps (unlike mission_time, which restarts for each step), reset by the next mission begin; the final value is held after the mission chain ends; NaN when no mission has been begun since boot or after a reset to Idle. Missing (older sender) decodes as NaN
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(60)
+        b = bytearray(64)
         _rt.put(b, '<I', 0, self.t_us)
         if len(self.setpoint_pos) != 3:
             raise ValueError('setpoint_pos needs 3 elements')
@@ -747,6 +754,7 @@ class Mission:
         _rt.put(b, '<B', 51, self.waypoint)
         _rt.put_f32(b, 52, self.flip_start_altitude)
         _rt.put_f32(b, 56, self.stop_altitude)
+        _rt.put_fixed(b, '<i', 60, self.mission_elapsed, 0.001, -2147483647, 2147483647, -2147483648)
         return bytes(b)
 
     @classmethod
@@ -782,6 +790,10 @@ class Mission:
             t.stop_altitude = _rt.get(data, '<f', 56)
         else:
             t.stop_altitude = float('nan')
+        if len(data) >= 64:
+            t.mission_elapsed = _rt.get_fixed(data, '<i', 60, 0.001, -2147483648)
+        else:
+            t.mission_elapsed = float('nan')
         return t
 
 

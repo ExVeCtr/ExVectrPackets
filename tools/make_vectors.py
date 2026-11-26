@@ -182,16 +182,16 @@ case("air_actuators_no_previous", "AIR_ACTUATORS", aan,
      P("IH4h2h2H8h", 1, 65535, 0, 0, -32768, -32768, 0, -32768, 1000, 65535, *([5000] * 4), *([-32768] * 4)))
 amv = {"t_us": 77, "mission_time": -9.5, "mission_mode": 1, "phase": 1, "index": 1, "waypoint": 255,
        "setpoint_pos": [0.0, -0.001, 120.0], "setpoint_vel": [0.0, 0.5, 7.0], "setpoint_q": [0.0, 0.0, 0.0, 0.0],
-       "flip_start_altitude": 123.4, "stop_altitude": 20.0}
+       "flip_start_altitude": 123.4, "stop_altitude": 20.0, "mission_elapsed": -9.5}
 case("air_mission", "AIR_MISSION", amv,
-     P("IiBBBB3i3h4h2h", 77, -9500, 1, 1, 1, 255, 0, -1, 120000, 0, 50, 700, 0, 0, 0, 0, 1234, 200),
-     {**amv, "mission_time": -9500 * 0.001, "flip_start_altitude": 1234 * 0.1, "stop_altitude": 200 * 0.1, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
+     P("IiBBBB3i3h4h2hi", 77, -9500, 1, 1, 1, 255, 0, -1, 120000, 0, 50, 700, 0, 0, 0, 0, 1234, 200, -9500),
+     {**amv, "mission_time": -9500 * 0.001, "mission_elapsed": -9500 * 0.001, "flip_start_altitude": 1234 * 0.1, "stop_altitude": 200 * 0.1, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
       "setpoint_vel": [0.0, 50 * 0.01, 700 * 0.01]})
 # attitude setpoint present: q = [0.5, 0.5, -0.5, 0.5] (unit), i16 limit 1.0 -> raw = round(v * 32767)
-amq = {**amv, "flip_start_altitude": NAN, "stop_altitude": 60.0, "mission_mode": 2, "phase": 2, "waypoint": 3, "setpoint_q": [0.5, 0.5, -0.5, 0.5]}
+amq = {**amv, "mission_elapsed": NAN, "flip_start_altitude": NAN, "stop_altitude": 60.0, "mission_mode": 2, "phase": 2, "waypoint": 3, "setpoint_q": [0.5, 0.5, -0.5, 0.5]}
 case("air_mission_attitude_setpoint", "AIR_MISSION", amq,
-     P("IiBBBB3i3h4h2h", 77, -9500, 2, 2, 1, 3, 0, -1, 120000, 0, 50, 700, 16384, 16384, -16384, 16384, -32768, 600),
-     {**amq, "flip_start_altitude": NAN, "stop_altitude": 60.0, "mission_time": -9500 * 0.001, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
+     P("IiBBBB3i3h4h2hi", 77, -9500, 2, 2, 1, 3, 0, -1, 120000, 0, 50, 700, 16384, 16384, -16384, 16384, -32768, 600, -2**31),
+     {**amq, "mission_elapsed": NAN, "flip_start_altitude": NAN, "stop_altitude": 60.0, "mission_time": -9500 * 0.001, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
       "setpoint_vel": [0.0, 50 * 0.01, 700 * 0.01], "setpoint_q": [r / 32767 for r in (16384, 16384, -16384, 16384)]})
 pv = {"t_us": 5, "omega": [0.5, -0.25, 1.0], "q": [1.0, 0.0, 0.0, -0.5], "vel": [1.5, 2.5, -3.5], "pos": [10.0, -20.0, 30.5], "ground_distance": 0.875}
 case("pose", "POSE", pv, P("I3f4f3f3ff", 5, *pv["omega"], *pv["q"], *pv["vel"], *pv["pos"], 0.875))
@@ -207,28 +207,36 @@ decode_only.append({"name": "actuators_older_sender_no_roll_torque", "packet": "
                     "hex": hexs(P("I4f2ff", 6, *av["flaps"], *av["tvc"], 12.5)),
                     "decoded": {**av, "roll_torque": NAN}})
 mv = {"t_us": 7, "setpoint_pos": [1.0, 2.0, 3.0], "setpoint_vel": [0.0, 0.5, -0.5], "mission_time": 12.345, "index": 4, "phase": 2,
-      "setpoint_q": [0.5, -0.5, 0.5, -0.5], "mission_mode": 3, "waypoint": 2, "flip_start_altitude": 87.5, "stop_altitude": 20.0}
-case("mission", "MISSION", mv, P("I3f3fiBB4fBBff", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5, 3, 2, 87.5, 20.0),
-     {**mv, "mission_time": 12345 * 0.001})
+      "setpoint_q": [0.5, -0.5, 0.5, -0.5], "mission_mode": 3, "waypoint": 2, "flip_start_altitude": 87.5, "stop_altitude": 20.0, "mission_elapsed": 123.456}
+case("mission", "MISSION", mv, P("I3f3fiBB4fBBffi", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5, 3, 2, 87.5, 20.0, 123456),
+     {**mv, "mission_time": 12345 * 0.001, "mission_elapsed": 123456 * 0.001})
 # older sender (before setpoint_q was appended): the optional tail decodes as NaN (= unknown, no setpoint)
 decode_only.append({"name": "mission_older_sender_no_setpoint_q", "packet": "MISSION",
                     "hex": hexs(P("I3f3fiBB", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2)),
-                    "decoded": {**mv, "mission_time": 12345 * 0.001, "setpoint_q": [NAN] * 4, "mission_mode": 0, "waypoint": 0, "flip_start_altitude": NAN, "stop_altitude": NAN}})
+                    "decoded": {**mv, "mission_time": 12345 * 0.001, "setpoint_q": [NAN] * 4, "mission_mode": 0, "waypoint": 0, "flip_start_altitude": NAN, "stop_altitude": NAN, "mission_elapsed": NAN}})
 # older sender (has setpoint_q, before mission_mode and waypoint were appended): both decode as 0
 decode_only.append({"name": "mission_older_sender_no_mode_waypoint", "packet": "MISSION",
                     "hex": hexs(P("I3f3fiBB4f", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5)),
-                    "decoded": {**mv, "mission_time": 12345 * 0.001, "mission_mode": 0, "waypoint": 0, "flip_start_altitude": NAN, "stop_altitude": NAN}})
+                    "decoded": {**mv, "mission_time": 12345 * 0.001, "mission_mode": 0, "waypoint": 0, "flip_start_altitude": NAN, "stop_altitude": NAN, "mission_elapsed": NAN}})
 decode_only.append({"name": "mission_older_sender_no_flip_start", "packet": "MISSION",
                     "hex": hexs(P("I3f3fiBB4fBB", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5, 3, 2)),
-                    "decoded": {**mv, "mission_time": 12345 * 0.001, **{"flip_start_altitude": NAN, "stop_altitude": NAN}}})
-case("mission_not_waypoint", "MISSION", {**mv, "mission_mode": 4, "waypoint": 255},
-     P("I3f3fiBB4fBBff", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5, 4, 255, 87.5, 20.0),
-     {**mv, "mission_time": 12345 * 0.001, "mission_mode": 4, "waypoint": 255})
+                    "decoded": {**mv, "mission_time": 12345 * 0.001, **{"flip_start_altitude": NAN, "stop_altitude": NAN, "mission_elapsed": NAN}}})
+decode_only.append({"name": "mission_older_sender_no_mission_elapsed", "packet": "MISSION",
+                    "hex": hexs(P("I3f3fiBB4fBBff", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5, 3, 2, 87.5, 20.0)),
+                    "decoded": {**mv, "mission_time": 12345 * 0.001, "mission_elapsed": NAN}})
+case("mission_not_waypoint", "MISSION", {**mv, "mission_mode": 4, "waypoint": 255, "mission_elapsed": NAN},
+     P("I3f3fiBB4fBBffi", 7, 1.0, 2.0, 3.0, 0.0, 0.5, -0.5, 12345, 4, 2, 0.5, -0.5, 0.5, -0.5, 4, 255, 87.5, 20.0, -2**31),
+     {**mv, "mission_time": 12345 * 0.001, "mission_mode": 4, "waypoint": 255, "mission_elapsed": NAN})
 decode_only.append({"name": "air_mission_older_sender_no_setpoint_q", "packet": "AIR_MISSION",
                     "hex": hexs(P("IiBBBB3i3h", 77, -9500, 1, 1, 1, 255, 0, -1, 120000, 0, 50, 700)),
                     "decoded": {**amv, "mission_time": -9500 * 0.001, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
                                 "setpoint_vel": [0.0, 50 * 0.01, 700 * 0.01], "setpoint_q": [NAN] * 4,
-                                "flip_start_altitude": NAN, "stop_altitude": NAN}})
+                                "flip_start_altitude": NAN, "stop_altitude": NAN, "mission_elapsed": NAN}})
+decode_only.append({"name": "air_mission_older_sender_no_mission_elapsed", "packet": "AIR_MISSION",
+                    "hex": hexs(P("IiBBBB3i3h4h2h", 77, -9500, 1, 1, 1, 255, 0, -1, 120000, 0, 50, 700, 0, 0, 0, 0, 1234, 200)),
+                    "decoded": {**amv, "mission_time": -9500 * 0.001, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
+                                "setpoint_vel": [0.0, 50 * 0.01, 700 * 0.01], "flip_start_altitude": 1234 * 0.1, "stop_altitude": 200 * 0.1,
+                                "mission_elapsed": NAN}})
 gv = {"t_us": 8, "latitude": 0.8272, "longitude": 0.149, "altitude": 512.5, "vel": [0.5, 0.25, -1.0],
       "satellites": 14, "fix_type": 3, "h_acc": 1.5, "v_acc": 2.5, "s_acc": 0.25}
 case("gnss", "GNSS", gv, P("Iddf3fBBfff", 8, 0.8272, 0.149, 512.5, 0.5, 0.25, -1.0, 14, 3, 1.5, 2.5, 0.25))

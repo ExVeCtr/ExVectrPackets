@@ -470,7 +470,7 @@ struct AirMission {
     static constexpr bool kAirEligible = true;
     static constexpr uint16_t kAirRateHz = 5;
     static constexpr uint16_t kUsbRateHz = 0;
-    static constexpr size_t kMaxSize = 42;
+    static constexpr size_t kMaxSize = 46;
     static constexpr size_t kMinSize = 30;
 
     uint32_t t_us = {}; // [us] 
@@ -484,10 +484,11 @@ struct AirMission {
     float setpoint_q[4] = {}; // attitude setpoint of the active attitude controller, [w,x,y,z] body -> world, NWU (as AIR_POSE.q). All four 0 = no attitude setpoint (no attitude controller active), otherwise a unit quaternion. NaN (missing, older sender) = unknown, treat as no setpoint
     float flip_start_altitude = {}; // [m] estimated altitude above the position reference (NWU up) at which the upright (flip) manoeuvre will begin, = the vehicle's getStopAltitude() = stopDist(Vz) + stop_altitude, re-estimated continuously. Sent only during the bellyflop freefall phase, otherwise NaN (wire sentinel -32768). 0.1 m steps, +-3276.7 m. Missing (older sender) = NaN
     float stop_altitude = {}; // [m] current value of the stop altitude parameter (altitude above the position reference where the vehicle ends up stopped, default 20 m, settable 5..60 m with the SetStopAltitude telecommand while on the ground). Always sent, the echo that confirms a setting. NaN (wire sentinel -32768) = unknown / missing (older sender)
+    float mission_elapsed = {}; // [s] seconds since the mission's T0 (mission begin) as the vehicle counts them: negative (T-minus) during the countdown, 0 at T0, continuous across all mission steps (unlike mission_time, which restarts for each step), reset by the next mission begin; the final value is held after the mission chain ends; NaN when no mission has been begun since boot or after a reset to Idle. Missing (older sender) decodes as NaN
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 42;
+        constexpr size_t total = 46;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         codec::put_i32(out + 4, static_cast<int32_t>(codec::fixedEncode(mission_time, 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
@@ -500,6 +501,7 @@ struct AirMission {
         for (size_t i = 0; i < 4; ++i) codec::put_i16(out + 30 + i * 2, static_cast<int16_t>(codec::fixedEncode(setpoint_q[i], 3.051850947599719e-05, -32767LL, 32767LL, -32768LL)));
         codec::put_i16(out + 38, static_cast<int16_t>(codec::fixedEncode(flip_start_altitude, 0.1, -32767LL, 32767LL, -32768LL)));
         codec::put_i16(out + 40, static_cast<int16_t>(codec::fixedEncode(stop_altitude, 0.1, -32767LL, 32767LL, -32768LL)));
+        codec::put_i32(out + 42, static_cast<int32_t>(codec::fixedEncode(mission_elapsed, 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
         return total;
     }
 
@@ -531,6 +533,11 @@ struct AirMission {
         } else {
             t.stop_altitude = std::numeric_limits<float>::quiet_NaN();
         }
+        if (len >= 46) {
+            t.mission_elapsed = static_cast<float>(codec::fixedDecode(codec::get_i32(in + 42), 0.001, -2147483648LL));
+        } else {
+            t.mission_elapsed = std::numeric_limits<float>::quiet_NaN();
+        }
         *this = t;
         return true;
     }
@@ -549,6 +556,7 @@ struct AirMission {
         v.array("setpoint_q", setpoint_q);
         v.scalar("flip_start_altitude", flip_start_altitude);
         v.scalar("stop_altitude", stop_altitude);
+        v.scalar("mission_elapsed", mission_elapsed);
         (void)v;
     }
 };
@@ -798,7 +806,7 @@ struct Mission {
     static constexpr bool kAirEligible = false;
     static constexpr uint16_t kAirRateHz = 0;
     static constexpr uint16_t kUsbRateHz = 20;
-    static constexpr size_t kMaxSize = 60;
+    static constexpr size_t kMaxSize = 64;
     static constexpr size_t kMinSize = 34;
 
     uint32_t t_us = {}; // [us] 
@@ -812,10 +820,11 @@ struct Mission {
     uint8_t waypoint = {}; // current waypoint index, 255 = the active mission is not the waypoint mission (as AIR_MISSION.waypoint). Missing (older sender) decodes as 0, so use mission_mode/VEHICLE_STATUS to know the sender is new
     float flip_start_altitude = {}; // [m] estimated altitude above the position reference (NWU up) at which the upright (flip) manoeuvre will begin, = the vehicle's getStopAltitude() = stopDist(Vz) + stop_altitude, re-estimated continuously. Sent only during the bellyflop freefall phase, otherwise NaN. Missing (older sender) = NaN
     float stop_altitude = {}; // [m] current value of the stop altitude parameter (altitude above the position reference where the vehicle ends up stopped, default 20 m, settable 5..60 m with the SetStopAltitude telecommand while on the ground). Always sent, the echo that confirms a setting. NaN = unknown / missing (older sender)
+    float mission_elapsed = {}; // [s] seconds since the mission's T0 (mission begin) as the vehicle counts them: negative (T-minus) during the countdown, 0 at T0, continuous across all mission steps (unlike mission_time, which restarts for each step), reset by the next mission begin; the final value is held after the mission chain ends; NaN when no mission has been begun since boot or after a reset to Idle. Missing (older sender) decodes as NaN
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 60;
+        constexpr size_t total = 64;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         for (size_t i = 0; i < 3; ++i) codec::put_f32(out + 4 + i * 4, setpoint_pos[i]);
@@ -828,6 +837,7 @@ struct Mission {
         codec::put_u8(out + 51, waypoint);
         codec::put_f32(out + 52, flip_start_altitude);
         codec::put_f32(out + 56, stop_altitude);
+        codec::put_i32(out + 60, static_cast<int32_t>(codec::fixedEncode(mission_elapsed, 0.001, -2147483647LL, 2147483647LL, -2147483648LL)));
         return total;
     }
 
@@ -867,6 +877,11 @@ struct Mission {
         } else {
             t.stop_altitude = std::numeric_limits<float>::quiet_NaN();
         }
+        if (len >= 64) {
+            t.mission_elapsed = static_cast<float>(codec::fixedDecode(codec::get_i32(in + 60), 0.001, -2147483648LL));
+        } else {
+            t.mission_elapsed = std::numeric_limits<float>::quiet_NaN();
+        }
         *this = t;
         return true;
     }
@@ -885,6 +900,7 @@ struct Mission {
         v.scalar("waypoint", waypoint);
         v.scalar("flip_start_altitude", flip_start_altitude);
         v.scalar("stop_altitude", stop_altitude);
+        v.scalar("mission_elapsed", mission_elapsed);
         (void)v;
     }
 };

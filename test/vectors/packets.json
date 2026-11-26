@@ -797,9 +797,10 @@
      0.0
     ],
     "flip_start_altitude": 123.4,
-    "stop_altitude": 20.0
+    "stop_altitude": 20.0,
+    "mission_elapsed": -9.5
    },
-   "hex": "4d000000e4daffff010101ff00000000ffffffffc0d4010000003200bc020000000000000000d204c800",
+   "hex": "4d000000e4daffff010101ff00000000ffffffffc0d4010000003200bc020000000000000000d204c800e4daffff",
    "decoded": {
     "t_us": 77,
     "mission_time": -9.5,
@@ -824,7 +825,8 @@
      0.0
     ],
     "flip_start_altitude": 123.4,
-    "stop_altitude": 20.0
+    "stop_altitude": 20.0,
+    "mission_elapsed": -9.5
    }
   },
   {
@@ -854,9 +856,10 @@
      0.5
     ],
     "flip_start_altitude": null,
-    "stop_altitude": 60.0
+    "stop_altitude": 60.0,
+    "mission_elapsed": null
    },
-   "hex": "4d000000e4daffff0202010300000000ffffffffc0d4010000003200bc020040004000c0004000805802",
+   "hex": "4d000000e4daffff0202010300000000ffffffffc0d4010000003200bc020040004000c000400080580200000080",
    "decoded": {
     "t_us": 77,
     "mission_time": -9.5,
@@ -881,7 +884,8 @@
      0.500015259254738
     ],
     "flip_start_altitude": null,
-    "stop_altitude": 60.0
+    "stop_altitude": 60.0,
+    "mission_elapsed": null
    }
   },
   {
@@ -991,9 +995,10 @@
     "mission_mode": 3,
     "waypoint": 2,
     "flip_start_altitude": 87.5,
-    "stop_altitude": 20.0
+    "stop_altitude": 20.0,
+    "mission_elapsed": 123.456
    },
-   "hex": "070000000000803f0000004000004040000000000000003f000000bf3930000004020000003f000000bf0000003f000000bf03020000af420000a041",
+   "hex": "070000000000803f0000004000004040000000000000003f000000bf3930000004020000003f000000bf0000003f000000bf03020000af420000a04140e20100",
    "decoded": {
     "t_us": 7,
     "setpoint_pos": [
@@ -1018,7 +1023,8 @@
     "mission_mode": 3,
     "waypoint": 2,
     "flip_start_altitude": 87.5,
-    "stop_altitude": 20.0
+    "stop_altitude": 20.0,
+    "mission_elapsed": 123.456
    }
   },
   {
@@ -1048,9 +1054,10 @@
     "mission_mode": 4,
     "waypoint": 255,
     "flip_start_altitude": 87.5,
-    "stop_altitude": 20.0
+    "stop_altitude": 20.0,
+    "mission_elapsed": null
    },
-   "hex": "070000000000803f0000004000004040000000000000003f000000bf3930000004020000003f000000bf0000003f000000bf04ff0000af420000a041",
+   "hex": "070000000000803f0000004000004040000000000000003f000000bf3930000004020000003f000000bf0000003f000000bf04ff0000af420000a04100000080",
    "decoded": {
     "t_us": 7,
     "setpoint_pos": [
@@ -1075,7 +1082,8 @@
     "mission_mode": 4,
     "waypoint": 255,
     "flip_start_altitude": 87.5,
-    "stop_altitude": 20.0
+    "stop_altitude": 20.0,
+    "mission_elapsed": null
    }
   },
   {
@@ -3371,7 +3379,8 @@
     "mission_mode": 0,
     "waypoint": 0,
     "flip_start_altitude": null,
-    "stop_altitude": null
+    "stop_altitude": null,
+    "mission_elapsed": null
    }
   },
   {
@@ -3402,7 +3411,8 @@
     "mission_mode": 0,
     "waypoint": 0,
     "flip_start_altitude": null,
-    "stop_altitude": null
+    "stop_altitude": null,
+    "mission_elapsed": null
    }
   },
   {
@@ -3433,7 +3443,40 @@
     "mission_mode": 3,
     "waypoint": 2,
     "flip_start_altitude": null,
-    "stop_altitude": null
+    "stop_altitude": null,
+    "mission_elapsed": null
+   }
+  },
+  {
+   "name": "mission_older_sender_no_mission_elapsed",
+   "packet": "MISSION",
+   "hex": "070000000000803f0000004000004040000000000000003f000000bf3930000004020000003f000000bf0000003f000000bf03020000af420000a041",
+   "decoded": {
+    "t_us": 7,
+    "setpoint_pos": [
+     1.0,
+     2.0,
+     3.0
+    ],
+    "setpoint_vel": [
+     0.0,
+     0.5,
+     -0.5
+    ],
+    "mission_time": 12.345,
+    "index": 4,
+    "phase": 2,
+    "setpoint_q": [
+     0.5,
+     -0.5,
+     0.5,
+     -0.5
+    ],
+    "mission_mode": 3,
+    "waypoint": 2,
+    "flip_start_altitude": 87.5,
+    "stop_altitude": 20.0,
+    "mission_elapsed": null
    }
   },
   {
@@ -3464,7 +3507,40 @@
      null
     ],
     "flip_start_altitude": null,
-    "stop_altitude": null
+    "stop_altitude": null,
+    "mission_elapsed": null
+   }
+  },
+  {
+   "name": "air_mission_older_sender_no_mission_elapsed",
+   "packet": "AIR_MISSION",
+   "hex": "4d000000e4daffff010101ff00000000ffffffffc0d4010000003200bc020000000000000000d204c800",
+   "decoded": {
+    "t_us": 77,
+    "mission_time": -9.5,
+    "mission_mode": 1,
+    "phase": 1,
+    "index": 1,
+    "waypoint": 255,
+    "setpoint_pos": [
+     0.0,
+     -0.001,
+     120.0
+    ],
+    "setpoint_vel": [
+     0.0,
+     0.5,
+     7.0
+    ],
+    "setpoint_q": [
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "flip_start_altitude": 123.4,
+    "stop_altitude": 20.0,
+    "mission_elapsed": null
    }
   },
   {

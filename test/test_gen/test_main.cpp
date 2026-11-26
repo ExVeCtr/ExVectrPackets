@@ -401,7 +401,7 @@ static void test_metadata_constants() {
     TEST_ASSERT_EQUAL_UINT16(25, AirActuators::kAirRateHz);
     TEST_ASSERT_EQUAL_UINT16(0, AirActuators::kUsbRateHz);
     TEST_ASSERT_TRUE(AirMission::kAirEligible);
-    TEST_ASSERT_EQUAL(42, AirMission::kMaxSize);
+    TEST_ASSERT_EQUAL(46, AirMission::kMaxSize);
     TEST_ASSERT_EQUAL(30, AirMission::kMinSize);
     TEST_ASSERT_EQUAL_UINT16(5, AirMission::kAirRateHz);
     TEST_ASSERT_TRUE(AirGnss::kAirEligible);
