@@ -166,6 +166,7 @@ fields = [
   { name = "q",    type = "fixed", wire = "i16", limit = 1.0, count = 4, doc = "[w,x,y,z] body -> world" },
   { name = "pos",  type = "fixed", wire = "i32", scale = 0.001, count = 3, unit = "m", doc = "NWU, 1 mm resolution, +-2147483.6 m" },
   { name = "vel",  type = "fixed", wire = "i16", scale = 0.01, count = 3, unit = "m/s", doc = "NWU, +-327.66 m/s" },
+  { name = "ground_distance", type = "fixed", wire = "u16", scale = 0.001, unit = "m", optional = true, doc = "downward lidar (VL53L0X) distance to the ground in metres, NaN if unavailable (the vehicle only reports a valid reading in its useful range 0.4 to 1.5 m). 0..65.534 m at 1 mm, wire 65535 = unavailable (NaN). Missing (older sender) decodes as NaN" },
 ]
 
 [packet.AIR_ACTUATORS]
@@ -245,6 +246,7 @@ fields = [
   { name = "q",     type = "f32", count = 4, doc = "[w,x,y,z] body -> world" },
   { name = "vel",   type = "f32", count = 3, unit = "m/s", doc = "NWU" },
   { name = "pos",   type = "f32", count = 3, unit = "m", doc = "NWU from the reset reference" },
+  { name = "ground_distance", type = "f32", unit = "m", optional = true, doc = "downward lidar (VL53L0X) distance to the ground in metres, NaN if unavailable (the vehicle only reports a valid reading in its useful range 0.4 to 1.5 m). Missing (older sender) decodes as NaN" },
 ]
 
 [packet.ACTUATORS]
@@ -258,7 +260,6 @@ fields = [
   { name = "flaps",           type = "f32", count = 4, unit = "rad", doc = "[TL, TR, BL, BR]; 0 = extended, increasing = folded toward the back" },
   { name = "tvc",             type = "f32", count = 2, unit = "rad", doc = "thrust vector deflection [x, y]" },
   { name = "thrust",          type = "f32", unit = "N" },
-  { name = "ground_distance", type = "f32", unit = "m", doc = "NaN if unavailable" },
   { name = "roll_torque",     type = "f32", optional = true, unit = "N*m", doc = "TVC twist (roll) actuation as the roll torque about body Z the vanes produce (same meaning as AIR_ACTUATORS.roll_torque, unquantised). Missing (older sender) decodes as NaN = unknown" },
 ]
 

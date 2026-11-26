@@ -316,16 +316,17 @@ class AirPose:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 25
     USB_RATE_HZ: ClassVar[int] = 0
-    MAX_SIZE: ClassVar[int] = 30
+    MAX_SIZE: ClassVar[int] = 32
     MIN_SIZE: ClassVar[int] = 30
     t_us: int = 0  # [us] 
     q: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # [w,x,y,z] body -> world
     pos: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m] NWU, 1 mm resolution, +-2147483.6 m
     vel: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m/s] NWU, +-327.66 m/s
+    ground_distance: float = 0.0  # [m] downward lidar (VL53L0X) distance to the ground in metres, NaN if unavailable (the vehicle only reports a valid reading in its useful range 0.4 to 1.5 m). 0..65.534 m at 1 mm, wire 65535 = unavailable (NaN). Missing (older sender) decodes as NaN
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(30)
+        b = bytearray(32)
         _rt.put(b, '<I', 0, self.t_us)
         if len(self.q) != 4:
             raise ValueError('q needs 4 elements')
@@ -339,6 +340,7 @@ class AirPose:
             raise ValueError('vel needs 3 elements')
         for i, v in enumerate(self.vel):
             _rt.put_fixed(b, '<h', 24 + i * 2, v, 0.01, -32767, 32767, -32768)
+        _rt.put_fixed(b, '<H', 30, self.ground_distance, 0.001, 0, 65534, 65535)
         return bytes(b)
 
     @classmethod
@@ -352,6 +354,10 @@ class AirPose:
         t.q = [_rt.get_fixed(data, '<h', 4 + i * 2, 3.051850947599719e-05, -32768) for i in range(4)]
         t.pos = [_rt.get_fixed(data, '<i', 12 + i * 4, 0.001, -2147483648) for i in range(3)]
         t.vel = [_rt.get_fixed(data, '<h', 24 + i * 2, 0.01, -32768) for i in range(3)]
+        if len(data) >= 32:
+            t.ground_distance = _rt.get_fixed(data, '<H', 30, 0.001, 65535)
+        else:
+            t.ground_distance = float('nan')
         return t
 
 
@@ -591,17 +597,18 @@ class Pose:
     AIR_ELIGIBLE: ClassVar[bool] = False
     AIR_RATE_HZ: ClassVar[int] = 0
     USB_RATE_HZ: ClassVar[int] = 100
-    MAX_SIZE: ClassVar[int] = 56
+    MAX_SIZE: ClassVar[int] = 60
     MIN_SIZE: ClassVar[int] = 56
     t_us: int = 0  # [us] 
     omega: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [rad/s] body rates
     q: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # [w,x,y,z] body -> world
     vel: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m/s] NWU
     pos: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 3)  # [m] NWU from the reset reference
+    ground_distance: float = 0.0  # [m] downward lidar (VL53L0X) distance to the ground in metres, NaN if unavailable (the vehicle only reports a valid reading in its useful range 0.4 to 1.5 m). Missing (older sender) decodes as NaN
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(56)
+        b = bytearray(60)
         _rt.put(b, '<I', 0, self.t_us)
         if len(self.omega) != 3:
             raise ValueError('omega needs 3 elements')
@@ -619,6 +626,7 @@ class Pose:
             raise ValueError('pos needs 3 elements')
         for i, v in enumerate(self.pos):
             _rt.put_f32(b, 44 + i * 4, v)
+        _rt.put_f32(b, 56, self.ground_distance)
         return bytes(b)
 
     @classmethod
@@ -633,6 +641,10 @@ class Pose:
         t.q = [_rt.get(data, '<f', 16 + i * 4) for i in range(4)]
         t.vel = [_rt.get(data, '<f', 32 + i * 4) for i in range(3)]
         t.pos = [_rt.get(data, '<f', 44 + i * 4) for i in range(3)]
+        if len(data) >= 60:
+            t.ground_distance = _rt.get(data, '<f', 56)
+        else:
+            t.ground_distance = float('nan')
         return t
 
 
@@ -646,18 +658,17 @@ class Actuators:
     AIR_ELIGIBLE: ClassVar[bool] = False
     AIR_RATE_HZ: ClassVar[int] = 0
     USB_RATE_HZ: ClassVar[int] = 50
-    MAX_SIZE: ClassVar[int] = 40
-    MIN_SIZE: ClassVar[int] = 36
+    MAX_SIZE: ClassVar[int] = 36
+    MIN_SIZE: ClassVar[int] = 32
     t_us: int = 0  # [us] 
     flaps: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 4)  # [rad] [TL, TR, BL, BR]; 0 = extended, increasing = folded toward the back
     tvc: list[float] = dataclasses.field(default_factory=lambda: [0.0] * 2)  # [rad] thrust vector deflection [x, y]
     thrust: float = 0.0  # [N] 
-    ground_distance: float = 0.0  # [m] NaN if unavailable
     roll_torque: float = 0.0  # [N*m] TVC twist (roll) actuation as the roll torque about body Z the vanes produce (same meaning as AIR_ACTUATORS.roll_torque, unquantised). Missing (older sender) decodes as NaN = unknown
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(40)
+        b = bytearray(36)
         _rt.put(b, '<I', 0, self.t_us)
         if len(self.flaps) != 4:
             raise ValueError('flaps needs 4 elements')
@@ -668,8 +679,7 @@ class Actuators:
         for i, v in enumerate(self.tvc):
             _rt.put_f32(b, 20 + i * 4, v)
         _rt.put_f32(b, 28, self.thrust)
-        _rt.put_f32(b, 32, self.ground_distance)
-        _rt.put_f32(b, 36, self.roll_torque)
+        _rt.put_f32(b, 32, self.roll_torque)
         return bytes(b)
 
     @classmethod
@@ -677,15 +687,14 @@ class Actuators:
         """Raises ValueError if shorter than MIN_SIZE. Longer input is accepted, extra bytes ignored."""
         data = bytes(data)
         if len(data) < cls.MIN_SIZE:
-            raise ValueError('ACTUATORS: payload too short (%d < 36)' % len(data))
+            raise ValueError('ACTUATORS: payload too short (%d < 32)' % len(data))
         t = cls()
         t.t_us = _rt.get(data, '<I', 0)
         t.flaps = [_rt.get(data, '<f', 4 + i * 4) for i in range(4)]
         t.tvc = [_rt.get(data, '<f', 20 + i * 4) for i in range(2)]
         t.thrust = _rt.get(data, '<f', 28)
-        t.ground_distance = _rt.get(data, '<f', 32)
-        if len(data) >= 40:
-            t.roll_torque = _rt.get(data, '<f', 36)
+        if len(data) >= 36:
+            t.roll_torque = _rt.get(data, '<f', 32)
         else:
             t.roll_torque = float('nan')
         return t

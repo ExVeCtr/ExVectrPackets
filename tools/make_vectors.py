@@ -159,7 +159,13 @@ pos = [100, -100, 1234567]  # mm, beyond the old i16 range
 vel = [-327, 0, 1]
 S_Q = 1.0 / 32767
 ap = {"t_us": 1000, "q": [r * S_Q for r in q], "pos": [r * 0.001 for r in pos], "vel": [r * 0.01 for r in vel]}
-case("air_pose", "AIR_POSE", ap, P("I4h3i3h", 1000, *q, *pos, *vel))
+ap_nogd = {**ap, "ground_distance": NAN}
+case("air_pose", "AIR_POSE", ap_nogd, P("I4h3i3hH", 1000, *q, *pos, *vel, 65535))
+case("air_pose_ground_distance", "AIR_POSE", {**ap, "ground_distance": 1234 * 0.001}, P("I4h3i3hH", 1000, *q, *pos, *vel, 1234))
+case("air_pose_ground_distance_max", "AIR_POSE", {**ap, "ground_distance": 65534 * 0.001}, P("I4h3i3hH", 1000, *q, *pos, *vel, 65534))
+# older sender (before ground_distance was appended): decodes as NaN
+decode_only.append({"name": "air_pose_older_sender_no_ground_distance", "packet": "AIR_POSE",
+                    "hex": hexs(P("I4h3i3h", 1000, *q, *pos, *vel)), "decoded": ap_nogd})
 # AIR_ACTUATORS: two samples, saturation (tvc beyond +-3.2767 rad, thrust beyond 65.534 N) and NaN (sentinels)
 aa_tvc = [523, -523, 32767, -32767]          # 0.1 mrad
 aa_rt = [1500, -32767]                       # 0.01 mN*m
@@ -187,14 +193,18 @@ case("air_mission_attitude_setpoint", "AIR_MISSION", amq,
      P("IiBBBB3i3h4h2h", 77, -9500, 2, 2, 1, 3, 0, -1, 120000, 0, 50, 700, 16384, 16384, -16384, 16384, -32768, 600),
      {**amq, "flip_start_altitude": NAN, "stop_altitude": 60.0, "mission_time": -9500 * 0.001, "setpoint_pos": [0.0, -1 * 0.001, 120000 * 0.001],
       "setpoint_vel": [0.0, 50 * 0.01, 700 * 0.01], "setpoint_q": [r / 32767 for r in (16384, 16384, -16384, 16384)]})
-pv = {"t_us": 5, "omega": [0.5, -0.25, 1.0], "q": [1.0, 0.0, 0.0, -0.5], "vel": [1.5, 2.5, -3.5], "pos": [10.0, -20.0, 30.5]}
-case("pose", "POSE", pv, P("I3f4f3f3f", 5, *pv["omega"], *pv["q"], *pv["vel"], *pv["pos"]))
-av = {"t_us": 6, "flaps": [0.0, 0.25, 1.5, 0.75], "tvc": [0.125, -0.125], "thrust": 12.5, "ground_distance": NAN, "roll_torque": -0.0625}
-case("actuators_no_ground", "ACTUATORS", av,
-     P("I4f2ffff", 6, *av["flaps"], *av["tvc"], 12.5, float("nan"), -0.0625))
+pv = {"t_us": 5, "omega": [0.5, -0.25, 1.0], "q": [1.0, 0.0, 0.0, -0.5], "vel": [1.5, 2.5, -3.5], "pos": [10.0, -20.0, 30.5], "ground_distance": 0.875}
+case("pose", "POSE", pv, P("I3f4f3f3ff", 5, *pv["omega"], *pv["q"], *pv["vel"], *pv["pos"], 0.875))
+case("pose_no_ground_distance", "POSE", {**pv, "ground_distance": NAN}, P("I3f4f3f3ff", 5, *pv["omega"], *pv["q"], *pv["vel"], *pv["pos"], float("nan")))
+# older sender (before ground_distance was appended): decodes as NaN
+decode_only.append({"name": "pose_older_sender_no_ground_distance", "packet": "POSE",
+                    "hex": hexs(P("I3f4f3f3f", 5, *pv["omega"], *pv["q"], *pv["vel"], *pv["pos"])), "decoded": {**pv, "ground_distance": NAN}})
+av = {"t_us": 6, "flaps": [0.0, 0.25, 1.5, 0.75], "tvc": [0.125, -0.125], "thrust": 12.5, "roll_torque": -0.0625}
+case("actuators", "ACTUATORS", av,
+     P("I4f2fff", 6, *av["flaps"], *av["tvc"], 12.5, -0.0625))
 # older sender (before roll_torque was appended): decodes as NaN = unknown
 decode_only.append({"name": "actuators_older_sender_no_roll_torque", "packet": "ACTUATORS",
-                    "hex": hexs(P("I4f2fff", 6, *av["flaps"], *av["tvc"], 12.5, float("nan"))),
+                    "hex": hexs(P("I4f2ff", 6, *av["flaps"], *av["tvc"], 12.5)),
                     "decoded": {**av, "roll_torque": NAN}})
 mv = {"t_us": 7, "setpoint_pos": [1.0, 2.0, 3.0], "setpoint_vel": [0.0, 0.5, -0.5], "mission_time": 12.345, "index": 4, "phase": 2,
       "setpoint_q": [0.5, -0.5, 0.5, -0.5], "mission_mode": 3, "waypoint": 2, "flip_start_altitude": 87.5, "stop_altitude": 20.0}
