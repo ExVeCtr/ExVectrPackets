@@ -153,6 +153,7 @@ fields = [
   { name = "mission_profile", type = "u8", optional = true, doc = "SB position latched at the last go (0, 1, 2), 255 = none. NOTE: a missing field (older sender) decodes as 0, indistinguishable from profile 0; use calib_state/ctrl_flags presence via the payload length if that matters" },
   { name = "rc_rejected",     type = "u8", optional = true, doc = "wrapping count of rejected CMD_STATE frames (all reasons, both links). Missing decodes as 0" },
   { name = "cmd_session",     type = "u16", optional = true, doc = "low 16 bits of the latched CMD_STATE session id, 0 = none. The ground station compares it with its own session (NOT MASTER if different). Missing decodes as 0" },
+  { name = "profile_selected", type = "u8", optional = true, doc = "mission profile (0 hover test, 1 waypoint test, 2 flight) the vehicle currently takes from the last accepted CMD_STATE (the SB switch as the vehicle applies it, same value as CMD_APPLIED.profile, but on the AIR set too so the ground station can show the selected mission during a real flight); 255 = none yet (no accepted CMD_STATE). NOTE: missing field (older sender) decodes as 0 - use the payload length / the schema hash if that matters. Not the latched profile: that is mission_profile" },
 ]
 
 [packet.AIR_POSE]

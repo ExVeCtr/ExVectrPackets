@@ -180,7 +180,7 @@ class VehicleStatus:
     AIR_ELIGIBLE: ClassVar[bool] = True
     AIR_RATE_HZ: ClassVar[int] = 5
     USB_RATE_HZ: ClassVar[int] = 20
-    MAX_SIZE: ClassVar[int] = 38
+    MAX_SIZE: ClassVar[int] = 39
     MIN_SIZE: ClassVar[int] = 28
     FLAGS_ARMED: ClassVar[int] = 1
     FLAGS_SIMULATION: ClassVar[int] = 2
@@ -226,10 +226,11 @@ class VehicleStatus:
     mission_profile: int = 0  # SB position latched at the last go (0, 1, 2), 255 = none. NOTE: a missing field (older sender) decodes as 0, indistinguishable from profile 0; use calib_state/ctrl_flags presence via the payload length if that matters
     rc_rejected: int = 0  # wrapping count of rejected CMD_STATE frames (all reasons, both links). Missing decodes as 0
     cmd_session: int = 0  # low 16 bits of the latched CMD_STATE session id, 0 = none. The ground station compares it with its own session (NOT MASTER if different). Missing decodes as 0
+    profile_selected: int = 0  # mission profile (0 hover test, 1 waypoint test, 2 flight) the vehicle currently takes from the last accepted CMD_STATE (the SB switch as the vehicle applies it, same value as CMD_APPLIED.profile, but on the AIR set too so the ground station can show the selected mission during a real flight); 255 = none yet (no accepted CMD_STATE). NOTE: missing field (older sender) decodes as 0 - use the payload length / the schema hash if that matters. Not the latched profile: that is mission_profile
 
     def encode(self) -> bytes:
         """Wire bytes. Raises ValueError on out-of-range integers or wrong array lengths."""
-        b = bytearray(38)
+        b = bytearray(39)
         _rt.put(b, '<I', 0, self.t_us)
         _rt.put(b, '<q', 4, self.t_ns)
         _rt.put(b, '<B', 12, self.mode)
@@ -250,6 +251,7 @@ class VehicleStatus:
         _rt.put(b, '<B', 34, self.mission_profile)
         _rt.put(b, '<B', 35, self.rc_rejected)
         _rt.put(b, '<H', 36, self.cmd_session)
+        _rt.put(b, '<B', 38, self.profile_selected)
         return bytes(b)
 
     @classmethod
@@ -303,6 +305,10 @@ class VehicleStatus:
             t.cmd_session = _rt.get(data, '<H', 36)
         else:
             t.cmd_session = 0
+        if len(data) >= 39:
+            t.profile_selected = _rt.get(data, '<B', 38)
+        else:
+            t.profile_selected = 0
         return t
 
 
