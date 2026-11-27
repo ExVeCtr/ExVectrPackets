@@ -411,7 +411,7 @@ static void test_metadata_constants() {
     TEST_ASSERT_EQUAL(0x25, AirGnssInfo::kPort);
     TEST_ASSERT_EQUAL(10, AirGnssInfo::kMaxSize);
     TEST_ASSERT_EQUAL_UINT16(1, AirGnssInfo::kAirRateHz);
-    TEST_ASSERT_EQUAL(38, VehicleStatus::kMaxSize);
+    TEST_ASSERT_EQUAL(39, VehicleStatus::kMaxSize);
     TEST_ASSERT_EQUAL(28, VehicleStatus::kMinSize);
     TEST_ASSERT_EQUAL_UINT16(10, Gnss::kUsbRateHz);
     TEST_ASSERT_EQUAL(0x50, HomePosition::kPort);

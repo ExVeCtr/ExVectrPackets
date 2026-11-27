@@ -471,9 +471,10 @@
     "degraded_bits": 5,
     "mission_profile": 255,
     "rc_rejected": 200,
-    "cmd_session": 43981
+    "cmd_session": 43981,
+    "profile_selected": 2
    },
-   "hex": "00286bee7b409452a303000003020501070100008055010201001400021781040305ffc8cdab",
+   "hex": "00286bee7b409452a303000003020501070100008055010201001400021781040305ffc8cdab02",
    "decoded": {
     "t_us": 4000000000,
     "t_ns": 4000000000123,
@@ -494,7 +495,8 @@
     "degraded_bits": 5,
     "mission_profile": 255,
     "rc_rejected": 200,
-    "cmd_session": 43981
+    "cmd_session": 43981,
+    "profile_selected": 2
    }
   },
   {
@@ -520,9 +522,10 @@
     "degraded_bits": 5,
     "mission_profile": 255,
     "rc_rejected": 200,
-    "cmd_session": 43981
+    "cmd_session": 43981,
+    "profile_selected": 2
    },
-   "hex": "00286bee7b409452a30300000302050107010000805501020100ffff021781040305ffc8cdab"
+   "hex": "00286bee7b409452a30300000302050107010000805501020100ffff021781040305ffc8cdab02"
   },
   {
    "name": "cmd_applied",
@@ -3175,7 +3178,36 @@
     "degraded_bits": 5,
     "mission_profile": 255,
     "rc_rejected": 200,
-    "cmd_session": 0
+    "cmd_session": 0,
+    "profile_selected": 0
+   }
+  },
+  {
+   "name": "vehicle_status_older_sender_no_profile_selected",
+   "packet": "VEHICLE_STATUS",
+   "hex": "00286bee7b409452a303000003020501070100008055010201001400021781040305ffc8cdab",
+   "decoded": {
+    "t_us": 4000000000,
+    "t_ns": 4000000000123,
+    "mode": 3,
+    "mission_mode": 2,
+    "mission_phase": 5,
+    "ctrl_source": 1,
+    "flags": 7,
+    "failure_bits": 2147483649,
+    "sensor_state": 341,
+    "last_req_id": 258,
+    "last_req_status": 0,
+    "rc_age": 0.02,
+    "home_epoch": 2,
+    "calib_state": 23,
+    "ctrl_flags": 1153,
+    "go_refusal": 3,
+    "degraded_bits": 5,
+    "mission_profile": 255,
+    "rc_rejected": 200,
+    "cmd_session": 43981,
+    "profile_selected": 0
    }
   },
   {
@@ -3202,7 +3234,8 @@
     "degraded_bits": 0,
     "mission_profile": 0,
     "rc_rejected": 0,
-    "cmd_session": 0
+    "cmd_session": 0,
+    "profile_selected": 0
    }
   },
   {
@@ -3229,7 +3262,8 @@
     "degraded_bits": 0,
     "mission_profile": 0,
     "rc_rejected": 0,
-    "cmd_session": 0
+    "cmd_session": 0,
+    "profile_selected": 0
    }
   },
   {
@@ -3256,7 +3290,8 @@
     "degraded_bits": 0,
     "mission_profile": 0,
     "rc_rejected": 0,
-    "cmd_session": 0
+    "cmd_session": 0,
+    "profile_selected": 0
    }
   },
   {

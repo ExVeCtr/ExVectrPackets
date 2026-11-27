@@ -178,7 +178,7 @@ struct VehicleStatus {
     static constexpr bool kAirEligible = true;
     static constexpr uint16_t kAirRateHz = 5;
     static constexpr uint16_t kUsbRateHz = 20;
-    static constexpr size_t kMaxSize = 38;
+    static constexpr size_t kMaxSize = 39;
     static constexpr size_t kMinSize = 28;
     static constexpr uint8_t kFlagsArmed = uint8_t(1u << 0);
     static constexpr uint8_t kFlagsSimulation = uint8_t(1u << 1);
@@ -225,10 +225,11 @@ struct VehicleStatus {
     uint8_t mission_profile = {}; // SB position latched at the last go (0, 1, 2), 255 = none. NOTE: a missing field (older sender) decodes as 0, indistinguishable from profile 0; use calib_state/ctrl_flags presence via the payload length if that matters
     uint8_t rc_rejected = {}; // wrapping count of rejected CMD_STATE frames (all reasons, both links). Missing decodes as 0
     uint16_t cmd_session = {}; // low 16 bits of the latched CMD_STATE session id, 0 = none. The ground station compares it with its own session (NOT MASTER if different). Missing decodes as 0
+    uint8_t profile_selected = {}; // mission profile (0 hover test, 1 waypoint test, 2 flight) the vehicle currently takes from the last accepted CMD_STATE (the SB switch as the vehicle applies it, same value as CMD_APPLIED.profile, but on the AIR set too so the ground station can show the selected mission during a real flight); 255 = none yet (no accepted CMD_STATE). NOTE: missing field (older sender) decodes as 0 - use the payload length / the schema hash if that matters. Not the latched profile: that is mission_profile
 
     /// Bytes written, 0 on failure (null buffer or too small).
     size_t encode(uint8_t* out, size_t cap) const {
-        constexpr size_t total = 38;
+        constexpr size_t total = 39;
         if (out == nullptr || cap < total) return 0;
         codec::put_u32(out + 0, t_us);
         codec::put_i64(out + 4, t_ns);
@@ -250,6 +251,7 @@ struct VehicleStatus {
         codec::put_u8(out + 34, mission_profile);
         codec::put_u8(out + 35, rc_rejected);
         codec::put_u16(out + 36, cmd_session);
+        codec::put_u8(out + 38, profile_selected);
         return total;
     }
 
@@ -310,6 +312,11 @@ struct VehicleStatus {
         } else {
             t.cmd_session = 0;
         }
+        if (len >= 39) {
+            t.profile_selected = codec::get_u8(in + 38);
+        } else {
+            t.profile_selected = 0;
+        }
         *this = t;
         return true;
     }
@@ -337,6 +344,7 @@ struct VehicleStatus {
         v.scalar("mission_profile", mission_profile);
         v.scalar("rc_rejected", rc_rejected);
         v.scalar("cmd_session", cmd_session);
+        v.scalar("profile_selected", profile_selected);
         (void)v;
     }
 };
